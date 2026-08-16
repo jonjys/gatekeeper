@@ -2,6 +2,23 @@
 
 import { useEffect, useState } from 'react';
 
+function updateBadge(spent: number, budget: number) {
+  try {
+    if (!('setAppBadge' in navigator)) return;
+    const left = Math.max(0, Math.round(budget - spent));
+    if (spent >= budget && budget > 0) {
+      // @ts-expect-error experimental
+      navigator.setAppBadge?.(99);
+    } else if (spent > 0) {
+      // @ts-expect-error experimental
+      navigator.setAppBadge?.(Math.min(99, left));
+    } else {
+      // @ts-expect-error experimental
+      navigator.clearAppBadge?.();
+    }
+  } catch (_) {}
+}
+
 export default function CostRadar() {
   const [budget, setBudget] = useState(50);
   const [input, setInput] = useState('50');
@@ -20,6 +37,10 @@ export default function CostRadar() {
     } catch (_) {}
   }, []);
 
+  useEffect(() => {
+    updateBadge(spent, budget);
+  }, [spent, budget]);
+
   function persist(next: { budget?: number; spent?: number; armed?: boolean }) {
     const state = {
       budget: next.budget ?? budget,
@@ -27,6 +48,7 @@ export default function CostRadar() {
       armed: next.armed ?? armed
     };
     localStorage.setItem('gatezero-budget', JSON.stringify(state));
+    updateBadge(state.spent, state.budget);
   }
 
   function setBudgetValue() {
@@ -42,14 +64,26 @@ export default function CostRadar() {
     if (navigator.serviceWorker?.controller) {
       const channel = new MessageChannel();
       navigator.serviceWorker.controller.postMessage(
-        { type: 'ARM_KILL', ms: 30000 },
+        { type: 'ARM_KILL', ms: 60000 },
         [channel.port2]
       );
     }
   }
 
+  /** Demo: burn budget to show kill path without real proxy traffic */
+  function simulateSpike() {
+    const next = budget > 0 ? budget + 0.01 : 50;
+    setSpent(next);
+    setArmed(true);
+    persist({ spent: next, armed: true });
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'ARM_KILL', ms: 60000 });
+    }
+  }
+
   const pct = budget > 0 ? Math.min(100, (spent / budget) * 100) : 0;
   const over = spent >= budget && budget > 0;
+  const left = Math.max(0, budget - spent);
 
   return (
     <div className="card space-y-4">
@@ -65,6 +99,11 @@ export default function CostRadar() {
         </span>
         <span className="text-zinc-500 text-lg"> / ${budget.toFixed(0)} budget</span>
       </p>
+      <p className="text-xs font-mono text-zinc-500">
+        {over
+          ? 'Budget hit — gates return 503 until raised'
+          : `$${left.toFixed(2)} left · PWA badge updates when installed`}
+      </p>
       <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
         <div
           className={`h-full rounded-full transition-all ${
@@ -73,9 +112,6 @@ export default function CostRadar() {
           style={{ width: `${pct}%` }}
         />
       </div>
-      <p className="text-xs text-zinc-500">
-        Local estimate meter. Card billing later. When budget is hit, gates block locally.
-      </p>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-zinc-500 text-sm">$</span>
         <input
@@ -98,6 +134,13 @@ export default function CostRadar() {
           className="rounded-lg bg-zinc-100 px-3 py-2 text-sm font-medium text-black hover:bg-white transition"
         >
           Arm kill switch
+        </button>
+        <button
+          type="button"
+          onClick={simulateSpike}
+          className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 transition"
+        >
+          Simulate budget hit
         </button>
       </div>
     </div>
