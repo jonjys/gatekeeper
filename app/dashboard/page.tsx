@@ -7,6 +7,7 @@ import YubiGate from '@/components/YubiGate';
 import VaultBackup from '@/components/VaultBackup';
 import PasskeyGate from '@/components/PasskeyGate';
 import AuditPanel from '@/components/AuditPanel';
+import QueueTransparent from '@/components/QueueTransparent';
 import { listKeys, deleteKey } from '@/lib/crypto';
 import { fetchUsageEvents } from '@/lib/supabase';
 
@@ -148,6 +149,8 @@ export default function DashboardPage() {
               <h2 className="font-semibold">CostRadar</h2>
               <UsageChart data={chartData} />
             </section>
+
+            <QueueTransparent />
 
             <section className="space-y-3">
               <div className="flex items-center justify-between">
