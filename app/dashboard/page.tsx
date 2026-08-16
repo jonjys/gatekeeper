@@ -5,10 +5,13 @@ import Link from 'next/link';
 import UsageChart from '@/components/UsageChart';
 import YubiGate from '@/components/YubiGate';
 import VaultBackup from '@/components/VaultBackup';
+import PasskeyGate from '@/components/PasskeyGate';
+import AuditPanel from '@/components/AuditPanel';
 import { listKeys, deleteKey } from '@/lib/crypto';
-import { fetchUsageEvents, fetchKeysMeta } from '@/lib/supabase';
+import { fetchUsageEvents } from '@/lib/supabase';
 
 type LocalKey = { name: string; provider: string; created_at: number };
+type Tab = 'usage' | 'audit';
 
 export default function DashboardPage() {
   const [keys, setKeys] = useState<LocalKey[]>([]);
@@ -17,6 +20,7 @@ export default function DashboardPage() {
   >([]);
   const [totals, setTotals] = useState({ calls: 0, cost: 0 });
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>('usage');
 
   async function refresh() {
     const local = await listKeys();
@@ -66,77 +70,106 @@ export default function DashboardPage() {
             Gate<span className="text-emerald-400">Zero</span>
           </span>
         </Link>
-        <span className="text-sm text-zinc-500">Dashboard</span>
+        <div className="flex items-center gap-3 text-sm">
+          <Link href="/pricing" className="text-zinc-400 hover:text-emerald-400">
+            Pricing
+          </Link>
+          <span className="text-zinc-500">Dashboard</span>
+        </div>
       </header>
 
-      <div className="flex-1 max-w-4xl mx-auto w-full px-5 sm:px-8 py-10 space-y-10">
-        <section className="grid sm:grid-cols-3 gap-3">
-          <div className="card">
-            <p className="text-xs text-zinc-500 uppercase tracking-wider">Calls</p>
-            <p className="text-2xl font-mono mt-1">{totals.calls.toLocaleString()}</p>
-          </div>
-          <div className="card">
-            <p className="text-xs text-zinc-500 uppercase tracking-wider">Cost</p>
-            <p className="text-2xl font-mono mt-1 text-emerald-400">
-              ${totals.cost.toFixed(4)}
-            </p>
-          </div>
-          <div className="card">
-            <p className="text-xs text-zinc-500 uppercase tracking-wider">Our 2%</p>
-            <p className="text-2xl font-mono mt-1 text-amber-400">
-              ${(totals.cost * 0.02).toFixed(4)}
-            </p>
-          </div>
-        </section>
+      <div className="flex-1 max-w-4xl mx-auto w-full px-5 sm:px-8 py-10 space-y-8">
+        <div className="flex gap-2 border-b border-zinc-800 pb-2">
+          {(['usage', 'audit'] as Tab[]).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={`px-3 py-1.5 rounded-lg text-sm capitalize ${
+                tab === t
+                  ? 'bg-emerald-500/15 text-emerald-400'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
 
-        <section className="card space-y-3">
-          <h2 className="font-semibold">CostRadar</h2>
-          <UsageChart data={chartData} />
-        </section>
+        {tab === 'audit' ? (
+          <AuditPanel />
+        ) : (
+          <>
+            <section className="grid sm:grid-cols-3 gap-3">
+              <div className="card">
+                <p className="text-xs text-zinc-500 uppercase tracking-wider">Calls</p>
+                <p className="text-2xl font-mono mt-1">{totals.calls.toLocaleString()}</p>
+              </div>
+              <div className="card">
+                <p className="text-xs text-zinc-500 uppercase tracking-wider">Cost</p>
+                <p className="text-2xl font-mono mt-1 text-emerald-400">
+                  ${totals.cost.toFixed(4)}
+                </p>
+              </div>
+              <div className="card">
+                <p className="text-xs text-zinc-500 uppercase tracking-wider">Our 2%</p>
+                <p className="text-2xl font-mono mt-1 text-amber-400">
+                  ${(totals.cost * 0.02).toFixed(4)}
+                </p>
+              </div>
+            </section>
 
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Local vault</h2>
-            <Link href="/" className="text-sm text-emerald-400 hover:underline">
-              + Import
-            </Link>
-          </div>
-          {loading ? (
-            <p className="text-zinc-500 text-sm">Loading…</p>
-          ) : keys.length === 0 ? (
-            <div className="card border-dashed text-center text-zinc-500 text-sm">
-              No keys yet. Import a .env on the home page.
-            </div>
-          ) : (
-            <ul className="rounded-2xl border border-zinc-800 divide-y divide-zinc-800 overflow-hidden">
-              {keys.map((k) => (
-                <li
-                  key={k.name}
-                  className="flex items-center justify-between gap-4 px-4 py-3 bg-zinc-900/40"
-                >
-                  <div className="min-w-0">
-                    <p className="font-mono text-sm truncate">{k.name}</p>
-                    <p className="text-xs text-zinc-500">
-                      {k.provider} · {new Date(k.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(k.name)}
-                    className="text-xs text-red-400 hover:text-red-300"
-                  >
-                    Delete
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+            <section className="card space-y-3">
+              <h2 className="font-semibold">CostRadar</h2>
+              <UsageChart data={chartData} />
+            </section>
 
-        <section className="grid sm:grid-cols-2 gap-3">
-          <YubiGate estimatedSpendUsd={totals.cost} />
-          <VaultBackup />
-        </section>
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-semibold">Local vault</h2>
+                <Link href="/" className="text-sm text-emerald-400 hover:underline">
+                  + Import
+                </Link>
+              </div>
+              {loading ? (
+                <p className="text-zinc-500 text-sm">Loading…</p>
+              ) : keys.length === 0 ? (
+                <div className="card border-dashed text-center text-zinc-500 text-sm">
+                  No keys yet. Import a .env on the home page.
+                </div>
+              ) : (
+                <ul className="rounded-2xl border border-zinc-800 divide-y divide-zinc-800 overflow-hidden">
+                  {keys.map((k) => (
+                    <li
+                      key={k.name}
+                      className="flex items-center justify-between gap-4 px-4 py-3 bg-zinc-900/40"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-mono text-sm truncate">{k.name}</p>
+                        <p className="text-xs text-zinc-500">
+                          {k.provider} · {new Date(k.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(k.name)}
+                        className="text-xs text-red-400 hover:text-red-300"
+                      >
+                        Delete
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className="grid sm:grid-cols-2 gap-3">
+              <PasskeyGate estimatedSpendUsd={totals.cost} />
+              <YubiGate estimatedSpendUsd={totals.cost} />
+            </section>
+            <VaultBackup />
+          </>
+        )}
       </div>
     </main>
   );
