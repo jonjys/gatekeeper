@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { encryptAndSave, detectProvider, maskSecret, listKeys } from '@/lib/crypto';
 import { upsertKeyMeta } from '@/lib/supabase';
+import { writeAudit } from '@/lib/audit';
 
 type Preview = { name: string; provider: string; masked: string };
 
@@ -75,6 +76,7 @@ export default function ImportEnvButton({
 
       setPreviews(imported);
       setStatus('done');
+      await writeAudit({ action: 'import', detail: `${imported.length} keys` });
       onImported?.(imported);
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') {
