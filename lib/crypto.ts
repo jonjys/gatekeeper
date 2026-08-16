@@ -17,7 +17,7 @@ export type StoredKeyRecord = {
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    const req = indexedDB.open(DB_NAME, 2);
     req.onerror = () => reject(req.error);
     req.onsuccess = () => resolve(req.result);
     req.onupgradeneeded = () => {
@@ -30,6 +30,9 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains('usage_queue')) {
         db.createObjectStore('usage_queue', { autoIncrement: true });
+      }
+      if (!db.objectStoreNames.contains('audit_log')) {
+        db.createObjectStore('audit_log', { keyPath: 'id', autoIncrement: true });
       }
     };
   });
