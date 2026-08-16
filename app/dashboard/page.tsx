@@ -61,6 +61,24 @@ export default function DashboardPage() {
     await refresh();
   }
 
+  async function openPortal() {
+    const customerId =
+      new URLSearchParams(window.location.search).get('customer') ||
+      localStorage.getItem('gatezero-stripe-customer');
+    if (!customerId) {
+      alert('No Stripe customer yet — complete Checkout first.');
+      return;
+    }
+    const res = await fetch('/api/portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customerId })
+    });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+    else alert(data.detail || data.error || 'Portal failed');
+  }
+
   return (
     <main className="min-h-screen flex flex-col">
       <header className="border-b border-zinc-800 px-5 sm:px-8 py-4 flex items-center justify-between">
@@ -74,6 +92,13 @@ export default function DashboardPage() {
           <Link href="/pricing" className="text-zinc-400 hover:text-emerald-400">
             Pricing
           </Link>
+          <button
+            type="button"
+            onClick={openPortal}
+            className="text-zinc-400 hover:text-emerald-400"
+          >
+            Billing
+          </button>
           <span className="text-zinc-500">Dashboard</span>
         </div>
       </header>
