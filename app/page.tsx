@@ -32,6 +32,9 @@ export default function HomePage() {
           <span className="font-mono hidden sm:inline">
             {uses} uses · est. ${est.toFixed(2)}/mo
           </span>
+          <Link href="/pricing" className="hidden sm:inline hover:text-emerald-400">
+            Pricing
+          </Link>
           <Link
             href="/dashboard"
             className="rounded-lg border border-zinc-700 px-3 py-1.5 hover:border-emerald-500/40 hover:text-emerald-400 transition"
@@ -42,7 +45,6 @@ export default function HomePage() {
       </header>
 
       <div className="flex-1 max-w-3xl mx-auto w-full px-5 sm:px-8 py-12 sm:py-16 space-y-12">
-        {/* Hero */}
         <section className="space-y-5 text-center sm:text-left">
           <div className="flex flex-wrap justify-center sm:justify-start gap-2">
             <span className="badge">zero-trust</span>
@@ -59,35 +61,30 @@ export default function HomePage() {
           </p>
         </section>
 
-        {/* Weld / Lock / Kill */}
         <section className="grid sm:grid-cols-3 gap-3">
           <div className="card space-y-2">
-            <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider">
-              Weld
-            </p>
+            <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider">Weld</p>
             <p className="font-medium text-zinc-100">Import .env to AES-GCM</p>
             <p className="text-sm text-zinc-500">Masked only. File System Access — no upload.</p>
           </div>
           <div className="card space-y-2">
-            <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider">
-              Lock
-            </p>
+            <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider">Lock</p>
             <p className="font-medium text-zinc-100">Web Locks. One process.</p>
             <p className="text-sm text-zinc-500">~50ms plaintext under exclusive lock, then drop.</p>
           </div>
           <div className="card space-y-2">
-            <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider">
-              Kill
-            </p>
+            <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider">Kill</p>
             <p className="font-medium text-zinc-100">Budget hit → blocked</p>
             <p className="text-sm text-zinc-500">All keys blocked locally. Stops $14k surprises.</p>
           </div>
         </section>
 
-        {/* CostRadar */}
+        <p className="text-center text-sm text-zinc-500">
+          Unlock vault with Face ID / Touch ID · Passkey + YubiKey for spend ≥ $5k
+        </p>
+
         <CostRadar />
 
-        {/* Import */}
         <section className="card space-y-5">
           <div>
             <h2 className="text-lg font-semibold">Weld .env in 10 seconds</h2>
@@ -97,12 +94,9 @@ export default function HomePage() {
                 : 'Nothing stored yet — pick your .env file'}
             </p>
           </div>
-          <ImportEnvButton
-            onImported={(keys) => setKeyCount((c) => c + keys.length)}
-          />
+          <ImportEnvButton onImported={(keys) => setKeyCount((c) => c + keys.length)} />
         </section>
 
-        {/* How to proxy */}
         <section className="card space-y-3">
           <h3 className="font-medium">Point traffic at GateZero</h3>
           <pre className="text-xs sm:text-sm bg-black/50 rounded-xl p-4 overflow-x-auto text-emerald-300/90 leading-relaxed">
@@ -123,12 +117,7 @@ fetch('/api/gate/openai/v1/chat/completions', {
 
       <footer className="border-t border-zinc-800/80 px-5 py-5 text-center text-xs text-zinc-500">
         Built with GateZero · Is this app profitable? →{' '}
-        <a
-          href="https://fredcast.se"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-emerald-500 hover:underline"
-        >
+        <a href="https://fredcast.se" target="_blank" rel="noopener noreferrer" className="text-emerald-500 hover:underline">
           fredcast.se
         </a>
       </footer>
