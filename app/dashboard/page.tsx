@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import UsageChart from '@/components/UsageChart';
+import YubiGate from '@/components/YubiGate';
+import VaultBackup from '@/components/VaultBackup';
 import { listKeys, deleteKey } from '@/lib/crypto';
 import { fetchUsageEvents, fetchKeysMeta } from '@/lib/supabase';
 
@@ -129,6 +131,11 @@ export default function DashboardPage() {
               ))}
             </ul>
           )}
+        </section>
+
+        <section className="grid sm:grid-cols-2 gap-3">
+          <YubiGate estimatedSpendUsd={totals.cost} />
+          <VaultBackup />
         </section>
       </div>
     </main>
