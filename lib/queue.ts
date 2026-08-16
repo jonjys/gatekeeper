@@ -1,10 +1,11 @@
 /**
  * QueueTransparent — client-side visible proxy queue.
- * Reads usage_queue written by the Service Worker (metadata only, never secrets).
+ * Metadata only. Never secrets.
  */
 
 const DB_NAME = 'gatekeeper';
 const STORE = 'usage_queue';
+const TAKE_RATE = 0.02;
 
 export type QueueItem = {
   id?: number;
@@ -15,6 +16,11 @@ export type QueueItem = {
   cost?: number;
   timestamp?: number;
   duration_ms?: number;
+};
+
+export type EnrichedQueueItem = QueueItem & {
+  gatezero_fee: number;
+  est_savings: number;
 };
 
 function openDB(): Promise<IDBDatabase> {
@@ -43,44 +49,64 @@ function idbReq<T>(req: IDBRequest<T>): Promise<T> {
   });
 }
 
-/** Newest first. Metadata only. */
-export async function listQueue(limit = 50): Promise<QueueItem[]> {
+/** Heuristic: kill-switch + budget visibility saves ~15% runaway vs unmetered */
+export function enrichItem(r: QueueItem): EnrichedQueueItem {
+  const cost = Number(r.cost) || 0;
+  const gatezero_fee = Math.round(cost * TAKE_RATE * 1e6) / 1e6;
+  const est_savings = Math.round(cost * 0.15 * 1e6) / 1e6;
+  return { ...r, gatezero_fee, est_savings };
+}
+
+export async function listQueue(limit = 50): Promise<EnrichedQueueItem[]> {
   const db = await openDB();
   if (!db.objectStoreNames.contains(STORE)) return [];
   const tx = db.transaction(STORE, 'readonly');
   const all = await idbReq<QueueItem[]>(tx.objectStore(STORE).getAll());
   return all
-    .map((row, i) => ({ ...row, id: row.id ?? i }))
+    .map((row, i) => enrichItem({ ...row, id: row.id ?? i }))
     .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
     .slice(0, limit);
 }
 
-export async function queueTotals(): Promise<{ calls: number; cost: number }> {
+export async function queueTotals(): Promise<{
+  calls: number;
+  cost: number;
+  fees: number;
+  savings: number;
+}> {
   const rows = await listQueue(500);
   let cost = 0;
-  for (const r of rows) cost += Number(r.cost) || 0;
-  return { calls: rows.length, cost };
+  let fees = 0;
+  let savings = 0;
+  for (const r of rows) {
+    cost += Number(r.cost) || 0;
+    fees += r.gatezero_fee;
+    savings += r.est_savings;
+  }
+  return { calls: rows.length, cost, fees, savings };
 }
 
-/** Demo seed — never secrets */
 export async function seedDemoQueue(): Promise<number> {
   const db = await openDB();
   const tx = db.transaction(STORE, 'readwrite');
   const store = tx.objectStore(STORE);
   const now = Date.now();
   const demos = [
-    { provider: 'openai', keyName: 'OPENAI_API_KEY', status: 200, cost: 0.012, duration_ms: 340, bytes_out: 2048 },
-    { provider: 'anthropic', keyName: 'ANTHROPIC_API_KEY', status: 200, cost: 0.008, duration_ms: 280, bytes_out: 1024 },
+    { provider: 'openai', keyName: 'OPENAI_API_KEY', status: 200, cost: 0.042, duration_ms: 340, bytes_out: 2048 },
+    { provider: 'anthropic', keyName: 'ANTHROPIC_API_KEY', status: 200, cost: 0.028, duration_ms: 280, bytes_out: 1024 },
     { provider: 'openai', keyName: 'OPENAI_API_KEY', status: 429, cost: 0, duration_ms: 90, bytes_out: 128 },
-    { provider: 'stripe', keyName: 'STRIPE_SECRET_KEY', status: 200, cost: 0.001, duration_ms: 120, bytes_out: 512 }
+    { provider: 'stripe', keyName: 'STRIPE_SECRET_KEY', status: 200, cost: 0.001, duration_ms: 120, bytes_out: 512 },
+    { provider: 'openai', keyName: 'OPENAI_API_KEY', status: 200, cost: 1.84, duration_ms: 920, bytes_out: 8192 }
   ];
   for (let i = 0; i < demos.length; i++) {
     await idbReq(
       store.add({
         ...demos[i],
-        timestamp: now - (demos.length - i) * 15_000
+        timestamp: now - (demos.length - i) * 12_000
       })
     );
   }
   return demos.length;
 }
+
+export const TAKE = TAKE_RATE;
