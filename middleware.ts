@@ -8,7 +8,7 @@ export function middleware() {
   );
   res.headers.set(
     'Permissions-Policy',
-    'locks=(self), compute-pressure=(self), clipboard-read=(self)'
+    'locks=(self), compute-pressure=(self), clipboard-read=(self), usb=(self)'
   );
   res.headers.set('X-Content-Type-Options', 'nosniff');
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
