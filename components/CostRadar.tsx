@@ -24,6 +24,7 @@ export default function CostRadar() {
   const [input, setInput] = useState('50');
   const [spent, setSpent] = useState(0);
   const [armed, setArmed] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -51,6 +52,14 @@ export default function CostRadar() {
     updateBadge(state.spent, state.budget);
   }
 
+  function showKillToast(blockedUsd: number) {
+    const fee = blockedUsd * 0.02;
+    setToast(
+      `Blocked $${blockedUsd.toFixed(2)} in runaway spend. GateZero fee: $${fee.toFixed(2)}`
+    );
+    window.setTimeout(() => setToast(null), 6000);
+  }
+
   function setBudgetValue() {
     const n = Number(input);
     if (!Number.isFinite(n) || n < 0) return;
@@ -62,23 +71,20 @@ export default function CostRadar() {
     setArmed(true);
     persist({ armed: true });
     if (navigator.serviceWorker?.controller) {
-      const channel = new MessageChannel();
-      navigator.serviceWorker.controller.postMessage(
-        { type: 'ARM_KILL', ms: 60000 },
-        [channel.port2]
-      );
+      navigator.serviceWorker.controller.postMessage({ type: 'ARM_KILL', ms: 60000 });
     }
   }
 
-  /** Demo: burn budget to show kill path without real proxy traffic */
   function simulateSpike() {
-    const next = budget > 0 ? budget + 0.01 : 50;
+    const blocked = 18.4;
+    const next = budget > 0 ? budget + blocked : blocked;
     setSpent(next);
     setArmed(true);
     persist({ spent: next, armed: true });
     if (navigator.serviceWorker?.controller) {
       navigator.serviceWorker.controller.postMessage({ type: 'ARM_KILL', ms: 60000 });
     }
+    showKillToast(blocked);
   }
 
   const pct = budget > 0 ? Math.min(100, (spent / budget) * 100) : 0;
@@ -86,7 +92,12 @@ export default function CostRadar() {
   const left = Math.max(0, budget - spent);
 
   return (
-    <div className="card space-y-4">
+    <div className="card space-y-4 relative">
+      {toast && (
+        <div className="absolute -top-2 left-4 right-4 z-10 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200 shadow-lg shadow-emerald-500/10">
+          {toast}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-zinc-100">CostRadar</h3>
         <span className={`badge ${over ? 'border-red-500/40 bg-red-500/10 text-red-400' : ''}`}>
@@ -102,13 +113,11 @@ export default function CostRadar() {
       <p className="text-xs font-mono text-zinc-500">
         {over
           ? 'Budget hit — gates return 503 until raised'
-          : `$${left.toFixed(2)} left · PWA badge updates when installed`}
+          : `$${left.toFixed(2)} left · 2% fee only on proxied spend`}
       </p>
       <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all ${
-            over ? 'bg-red-500' : 'bg-emerald-500'
-          }`}
+          className={`h-full rounded-full transition-all ${over ? 'bg-red-500' : 'bg-emerald-500'}`}
           style={{ width: `${pct}%` }}
         />
       </div>
