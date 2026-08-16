@@ -2,18 +2,24 @@
 
 import { useState } from 'react';
 import { exportVaultToFile, importVaultFromFile } from '@/lib/vault-file';
+import { writeAudit } from '@/lib/audit';
 
 export default function VaultBackup() {
   const [status, setStatus] = useState<'idle' | 'busy' | 'done' | 'error'>('idle');
   const [msg, setMsg] = useState<string | null>(null);
 
-  async function run(fn: () => Promise<{ count: number }>, label: string) {
+  async function run(
+    fn: () => Promise<{ count: number }>,
+    label: string,
+    action: 'export' | 'import'
+  ) {
     setStatus('busy');
     setMsg(null);
     try {
       const { count } = await fn();
       setStatus('done');
       setMsg(`${label}: ${count} key${count === 1 ? '' : 's'}`);
+      await writeAudit({ action, detail: `${count} keys` });
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         setStatus('idle');
@@ -37,7 +43,7 @@ export default function VaultBackup() {
         <button
           type="button"
           disabled={status === 'busy'}
-          onClick={() => run(exportVaultToFile, 'Exported')}
+          onClick={() => run(exportVaultToFile, 'Exported', 'export')}
           className="rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:border-emerald-500/50 transition disabled:opacity-60"
         >
           Export .gkvault
@@ -45,7 +51,7 @@ export default function VaultBackup() {
         <button
           type="button"
           disabled={status === 'busy'}
-          onClick={() => run(importVaultFromFile, 'Imported')}
+          onClick={() => run(importVaultFromFile, 'Imported', 'import')}
           className="rounded-lg border border-zinc-700 px-3 py-2 text-sm hover:border-emerald-500/50 transition disabled:opacity-60"
         >
           Import .gkvault
