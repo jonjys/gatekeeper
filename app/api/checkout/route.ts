@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { getPlan, siteUrl, PLANS } from '@/lib/billing';
+import { getPaidPlan, siteUrl, PLANS } from '@/lib/billing';
 
 /**
- * Stripe Checkout for GateZero plans.
- * Prefer STRIPE_PRICE_PRO / STRIPE_PRICE_ENTERPRISE from env.
- * Falls back to ad-hoc price_data if Price IDs not set.
+ * Stripe Checkout for GateZero paid plans.
+ * Prefer STRIPE_PRICE_* from env; falls back to price_data.
  * Never receives vault secrets or API keys.
  */
 export async function POST(req: NextRequest) {
@@ -23,7 +22,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const plan = getPlan(body.plan || '');
+  const plan = getPaidPlan(body.plan || '');
   if (!plan) {
     return NextResponse.json(
       { error: 'plan must be pro or enterprise' },
@@ -88,9 +87,9 @@ export async function GET() {
       name: p.name,
       monthlyUsd: p.amountCents / 100,
       takeRate: p.takeRate,
-      hasPriceId: !!p.priceId
+      hasPriceId: !!p.priceId,
+      entitlements: p.entitlements
     })),
-    free: { id: 'free', monthlyUsd: 0, takeRate: 2 },
     siteUrl: siteUrl()
   });
 }
