@@ -14,8 +14,12 @@ export async function recordMeteredUsage(customerId: string, costUsd: number) {
   try {
     await stripe.billing.meterEvents.create({
       event_name: 'api_proxy_usage',
-      payload: { stripe_customer_id: customerId, value: String(cents) }
-    });
+      timestamp: Math.floor(Date.now() / 1000),
+      payload: {
+        stripe_customer_id: customerId,
+        value: String(cents)
+      }
+    } as Stripe.Billing.MeterEventCreateParams);
   } catch (e) {
     console.error('metered usage', e);
   }
