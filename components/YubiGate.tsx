@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { writeAudit } from '@/lib/audit';
 
 /**
  * WebUSB gate for high-value keys.
  * Requires a physical HID/USB security key touch before decrypting
  * secrets that proxy spend above the threshold (default $1000).
  * Moat: server-side gateways cannot require a local USB touch.
+ * Spend ≥ $5000 also expects Passkey (see PasskeyGate).
  */
 
 const THRESHOLD_USD = 1000;
@@ -53,6 +55,11 @@ export default function YubiGate({ estimatedSpendUsd = 0, onUnlocked }: Props) {
       sessionStorage.setItem('gatezero-yubi-ok', String(Date.now()));
       setStatus('ok');
       setMsg(`Unlocked with ${device.productName || 'USB key'}`);
+      await writeAudit({
+        action: 'yubi',
+        detail: device.productName || 'USB key',
+        costUsd: estimatedSpendUsd
+      });
       onUnlocked?.();
 
       try {
