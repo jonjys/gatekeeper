@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 
+/**
+ * Stripe Checkout for GateZero plans.
+ * Never receives vault secrets or API keys.
+ */
 const PLANS: Record<
   string,
   { name: string; amountCents: number; takeRate: number; mode: 'subscription' }
