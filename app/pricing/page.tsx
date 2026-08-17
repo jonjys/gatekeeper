@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 const TIERS = [
@@ -84,6 +84,14 @@ export default function PricingPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [proxied, setProxied] = useState(128_400);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setProxied((n) => n + Math.floor(Math.random() * 40) + 8);
+    }, 2800);
+    return () => clearInterval(id);
+  }, []);
 
   async function checkout(plan: string) {
     setBusy(plan);
@@ -130,6 +138,9 @@ export default function PricingPage() {
           <p className="text-zinc-400 max-w-xl mx-auto">
             Seat fees unlock features. Take-rate on proxied spend only. Zero secrets on
             our servers — ever.
+          </p>
+          <p className="text-sm font-mono text-emerald-400/90 pt-1">
+            Proxied ${proxied.toLocaleString()} this month · network seed ticker
           </p>
         </div>
 
