@@ -85,12 +85,21 @@ export default function PricingPage() {
   const [error, setError] = useState<string | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [proxied, setProxied] = useState(128_400);
+  const [fromBilling, setFromBilling] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => {
       setProxied((n) => n + Math.floor(Math.random() * 40) + 8);
     }, 2800);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('billing') === '1' || q.get('checkout') === 'cancel') {
+      setFromBilling(true);
+    }
   }, []);
 
   async function checkout(plan: string) {
@@ -143,6 +152,13 @@ export default function PricingPage() {
             Proxied ${proxied.toLocaleString()} this month · network seed ticker
           </p>
         </div>
+
+        {fromBilling && (
+          <p className="text-center text-sm text-emerald-400 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
+            Billing needs an active plan first — pick Pro or Enterprise below. After Checkout,
+            Billing opens the Stripe portal.
+          </p>
+        )}
 
         {error && (
           <p className="text-center text-sm text-red-400">
