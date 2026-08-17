@@ -32,6 +32,9 @@ export default function HomePage() {
           <span className="font-mono hidden sm:inline">
             {uses} uses · est. ${est.toFixed(2)}/mo
           </span>
+          <Link href="/index" className="text-sm text-zinc-400 hover:text-emerald-400 hidden sm:inline">
+            Index
+          </Link>
           <Link href="/pricing" className="text-sm text-zinc-400 hover:text-emerald-400 hidden sm:inline">
             Pricing
           </Link>
@@ -45,7 +48,6 @@ export default function HomePage() {
       </header>
 
       <div className="flex-1 max-w-3xl mx-auto w-full px-5 sm:px-8 py-12 sm:py-16 space-y-12">
-        {/* Hero */}
         <section className="space-y-5 text-center sm:text-left">
           <div className="flex flex-wrap justify-center sm:justify-start gap-2">
             <span className="badge">zero-trust</span>
@@ -57,31 +59,24 @@ export default function HomePage() {
             <span className="text-emerald-400">Spend never surprises.</span>
           </h1>
           <p className="text-zinc-400 text-base sm:text-lg max-w-xl leading-relaxed">
-            Weld every .env into an encrypted on-device store. Web Locks for exclusive
-            use. CostRadar kills traffic when budget is hit. No secret on our servers.
+            API traffic's toll booth. Web Locks. Passkeys + YubiKey. CostRadar kills runaway
+            spend. 2% take-rate — zero secrets on our servers.
           </p>
         </section>
 
-        {/* Weld / Lock / Kill */}
         <section className="grid sm:grid-cols-3 gap-3">
           <div className="card space-y-2">
-            <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider">
-              Weld
-            </p>
+            <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider">Weld</p>
             <p className="font-medium text-zinc-100">Import .env to AES-GCM</p>
             <p className="text-sm text-zinc-500">Masked only. File System Access — no upload.</p>
           </div>
           <div className="card space-y-2">
-            <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider">
-              Lock
-            </p>
+            <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider">Lock</p>
             <p className="font-medium text-zinc-100">Web Locks. One process.</p>
             <p className="text-sm text-zinc-500">~50ms plaintext under exclusive lock, then drop.</p>
           </div>
           <div className="card space-y-2">
-            <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider">
-              Kill
-            </p>
+            <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider">Kill</p>
             <p className="font-medium text-zinc-100">Budget hit → blocked</p>
             <p className="text-sm text-zinc-500">All keys blocked locally. Stops $14k surprises.</p>
           </div>
@@ -91,10 +86,8 @@ export default function HomePage() {
           Unlock vault with Face ID / Touch ID · Passkey + YubiKey for spend ≥ $5k
         </p>
 
-        {/* CostRadar */}
         <CostRadar />
 
-        {/* Pricing teaser */}
         <section className="card space-y-4 border-emerald-500/20">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -111,16 +104,8 @@ export default function HomePage() {
               View plans
             </Link>
           </div>
-          <div className="grid sm:grid-cols-3 gap-2 text-xs text-zinc-400">
-            <div className="rounded-lg bg-zinc-900/60 px-3 py-2">Free — local vault + kill-switch</div>
-            <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 text-emerald-300">
-              Pro — Passkeys + YubiGate + audit
-            </div>
-            <div className="rounded-lg bg-zinc-900/60 px-3 py-2">Enterprise — 1% take + SSO</div>
-          </div>
         </section>
 
-        {/* Import */}
         <section className="card space-y-5">
           <div>
             <h2 className="text-lg font-semibold">Weld .env in 10 seconds</h2>
@@ -130,12 +115,9 @@ export default function HomePage() {
                 : 'Nothing stored yet — pick your .env file'}
             </p>
           </div>
-          <ImportEnvButton
-            onImported={(keys) => setKeyCount((c) => c + keys.length)}
-          />
+          <ImportEnvButton onImported={(keys) => setKeyCount((c) => c + keys.length)} />
         </section>
 
-        {/* How to proxy */}
         <section className="card space-y-3">
           <h3 className="font-medium">Point traffic at GateZero</h3>
           <pre className="text-xs sm:text-sm bg-black/50 rounded-xl p-4 overflow-x-auto text-emerald-300/90 leading-relaxed">
@@ -151,6 +133,39 @@ fetch('/api/gate/openai/v1/chat/completions', {
           <p className="text-xs text-zinc-500">
             Service Worker injects the real key under Web Locks. Network tab stays clean.
           </p>
+        </section>
+
+        <section className="card space-y-4 border-zinc-700/80">
+          <div className="flex flex-wrap gap-2">
+            <span className="badge">enterprise</span>
+            <span className="badge border-amber-500/30 text-amber-300">WebUSB YubiKey</span>
+          </div>
+          <h2 className="text-lg font-semibold">Hardware-bound sessions. Zero-knowledge posture.</h2>
+          <p className="text-sm text-zinc-400 leading-relaxed">
+            High-spend paths require Passkey + physical YubiKey touch (WebUSB). SOC2 Type II in
+            progress. Zero-knowledge audited architecture — ciphertext never leaves the device;
+            servers see metadata only.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/dashboard"
+              className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-black hover:bg-amber-400"
+            >
+              Arm with YubiKey
+            </Link>
+            <Link
+              href="/onboard/vercel"
+              className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:border-emerald-500/40"
+            >
+              Migrate from Vercel · 3 min
+            </Link>
+            <Link
+              href="/index"
+              className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:border-emerald-500/40"
+            >
+              GateZero Index
+            </Link>
+          </div>
         </section>
       </div>
 
