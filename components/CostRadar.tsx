@@ -2,21 +2,26 @@
 
 import { useEffect, useState } from 'react';
 
+type BadgeNavigator = Navigator & {
+  setAppBadge?: (n?: number) => Promise<void>;
+  clearAppBadge?: () => Promise<void>;
+};
+
 function updateBadge(spent: number, budget: number) {
   try {
-    if (!('setAppBadge' in navigator)) return;
+    const nav = navigator as BadgeNavigator;
+    if (typeof nav.setAppBadge !== 'function') return;
     const left = Math.max(0, Math.round(budget - spent));
     if (spent >= budget && budget > 0) {
-      // @ts-expect-error experimental
-      navigator.setAppBadge?.(99);
+      void nav.setAppBadge(99);
     } else if (spent > 0) {
-      // @ts-expect-error experimental
-      navigator.setAppBadge?.(Math.min(99, left));
-    } else {
-      // @ts-expect-error experimental
-      navigator.clearAppBadge?.();
+      void nav.setAppBadge(Math.min(99, left));
+    } else if (typeof nav.clearAppBadge === 'function') {
+      void nav.clearAppBadge();
     }
-  } catch (_) {}
+  } catch (_) {
+    /* badge unsupported */
+  }
 }
 
 export default function CostRadar() {
