@@ -1,10 +1,8 @@
-'use client';
-
 import Link from 'next/link';
 
 /**
  * GateZero Index — public anonymized traffic moat.
- * Seeded aggregates until real telemetry ships (metadata only).
+ * Server component (no client APIs) to avoid Next prerender clientModules bugs.
  */
 const ROWS = [
   {

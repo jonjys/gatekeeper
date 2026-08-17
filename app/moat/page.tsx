@@ -1,11 +1,6 @@
-'use client';
-/* build-stamp: 2026-08-17-ph */
-
 import Link from 'next/link';
 
-/**
- * GateZero Index / Moat — public anonymized traffic data.
- */
+/** GateZero Moat — same public index data at /moat */
 const ROWS = [
   {
     provider: 'OpenAI',

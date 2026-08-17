@@ -7,7 +7,9 @@ type BadgeNavigator = Navigator & {
   clearAppBadge?: () => Promise<void>;
 };
 
+/** Browser-only. Never call during SSR/prerender. */
 function updateBadge(spent: number, budget: number) {
+  if (typeof window === 'undefined') return;
   try {
     const nav = navigator as BadgeNavigator;
     if (typeof nav.setAppBadge !== 'function') return;
@@ -19,7 +21,7 @@ function updateBadge(spent: number, budget: number) {
     } else if (typeof nav.clearAppBadge === 'function') {
       void nav.clearAppBadge();
     }
-  } catch (_) {
+  } catch {
     /* badge unsupported */
   }
 }
@@ -40,7 +42,9 @@ export default function CostRadar() {
         if (typeof parsed.spent === 'number') setSpent(parsed.spent);
         if (typeof parsed.armed === 'boolean') setArmed(parsed.armed);
       }
-    } catch (_) {}
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   useEffect(() => {
@@ -53,7 +57,9 @@ export default function CostRadar() {
       spent: next.spent ?? spent,
       armed: next.armed ?? armed
     };
-    localStorage.setItem('gatezero-budget', JSON.stringify(state));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('gatezero-budget', JSON.stringify(state));
+    }
     updateBadge(state.spent, state.budget);
   }
 
@@ -75,7 +81,7 @@ export default function CostRadar() {
   function armKill() {
     setArmed(true);
     persist({ armed: true });
-    if (navigator.serviceWorker?.controller) {
+    if (typeof navigator !== 'undefined' && navigator.serviceWorker?.controller) {
       navigator.serviceWorker.controller.postMessage({ type: 'ARM_KILL', ms: 60000 });
     }
   }
@@ -86,7 +92,7 @@ export default function CostRadar() {
     setSpent(next);
     setArmed(true);
     persist({ spent: next, armed: true });
-    if (navigator.serviceWorker?.controller) {
+    if (typeof navigator !== 'undefined' && navigator.serviceWorker?.controller) {
       navigator.serviceWorker.controller.postMessage({ type: 'ARM_KILL', ms: 60000 });
     }
     showKillToast(blocked);
