@@ -14,6 +14,8 @@ import { fetchUsageEvents } from '@/lib/supabase';
 type LocalKey = { name: string; provider: string; created_at: number };
 type Tab = 'usage' | 'audit';
 
+const CUSTOMER_KEY = 'gatezero-stripe-customer';
+
 export default function DashboardPage() {
   const [keys, setKeys] = useState<LocalKey[]>([]);
   const [chartData, setChartData] = useState<
@@ -22,6 +24,8 @@ export default function DashboardPage() {
   const [totals, setTotals] = useState({ calls: 0, cost: 0 });
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('usage');
+  const [banner, setBanner] = useState<string | null>(null);
+  const [billingBusy, setBillingBusy] = useState(false);
 
   async function refresh() {
     const local = await listKeys();
@@ -56,28 +60,85 @@ export default function DashboardPage() {
     refresh();
   }, []);
 
+  /** After Stripe Checkout: resolve session_id → cus_ and store locally */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session_id');
+    const checkout = params.get('checkout');
+
+    if (checkout === 'success' && !sessionId) {
+      setBanner('Checkout complete. Open Billing after the first invoice links your customer id.');
+    }
+
+    if (!sessionId || !sessionId.startsWith('cs_')) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/checkout?session_id=${encodeURIComponent(sessionId)}`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.customerId && String(data.customerId).startsWith('cus_')) {
+          localStorage.setItem(CUSTOMER_KEY, data.customerId);
+          setBanner(`Plan active${data.plan ? ` (${data.plan})` : ''}. Billing portal is ready.`);
+        } else {
+          setBanner('Checkout received — customer id pending. Try Billing in a moment.');
+        }
+        const url = new URL(window.location.href);
+        url.searchParams.delete('session_id');
+        url.searchParams.delete('checkout');
+        url.searchParams.delete('plan');
+        window.history.replaceState({}, '', url.pathname);
+      } catch {
+        if (!cancelled) setBanner('Could not confirm Checkout session. You can still open Pricing.');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function onDelete(name: string) {
     if (!confirm(`Delete ${name} from local vault?`)) return;
     await deleteKey(name);
     await refresh();
   }
 
-  async function openPortal() {
-    const customerId =
-      new URLSearchParams(window.location.search).get('customer') ||
-      localStorage.getItem('gatezero-stripe-customer');
-    if (!customerId) {
-      alert('No Stripe customer yet — complete Checkout first.');
-      return;
+  async function openBilling() {
+    setBillingBusy(true);
+    setBanner(null);
+    try {
+      const customerId =
+        new URLSearchParams(window.location.search).get('customer') ||
+        localStorage.getItem(CUSTOMER_KEY);
+
+      if (!customerId || !customerId.startsWith('cus_')) {
+        setBanner(
+          'No Stripe customer yet. Upgrade on Pricing first — then Billing opens the portal.'
+        );
+        window.setTimeout(() => {
+          window.location.href = '/pricing?billing=1';
+        }, 900);
+        return;
+      }
+
+      const res = await fetch('/api/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId })
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setBanner(data.detail || data.error || 'Portal failed — check STRIPE_SECRET_KEY');
+    } catch (e) {
+      setBanner(e instanceof Error ? e.message : 'Billing request failed');
+    } finally {
+      setBillingBusy(false);
     }
-    const res = await fetch('/api/portal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customerId })
-    });
-    const data = await res.json();
-    if (data.url) window.location.href = data.url;
-    else alert(data.detail || data.error || 'Portal failed');
   }
 
   return (
@@ -95,16 +156,28 @@ export default function DashboardPage() {
           </Link>
           <button
             type="button"
-            onClick={openPortal}
-            className="text-zinc-400 hover:text-emerald-400"
+            disabled={billingBusy}
+            onClick={openBilling}
+            className="text-zinc-400 hover:text-emerald-400 disabled:opacity-50"
           >
-            Billing
+            {billingBusy ? 'Opening…' : 'Billing'}
           </button>
           <span className="text-zinc-500">Dashboard</span>
         </div>
       </header>
 
       <div className="flex-1 max-w-4xl mx-auto w-full px-5 sm:px-8 py-10 space-y-8">
+        {banner && (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+            {banner}{' '}
+            {banner.includes('Pricing') && (
+              <Link href="/pricing?billing=1" className="underline font-medium">
+                Go to Pricing →
+              </Link>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-2 border-b border-zinc-800 pb-2">
           {(['usage', 'audit'] as Tab[]).map((t) => (
             <button
