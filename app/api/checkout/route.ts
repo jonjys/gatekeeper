@@ -52,7 +52,8 @@ export async function POST(req: NextRequest) {
       mode: 'subscription',
       customer_email: body.email || undefined,
       line_items: [lineItem],
-      success_url: `${origin}/dashboard?checkout=success&plan=${plan.id}`,
+      // {CHECKOUT_SESSION_ID} is replaced by Stripe so we can resolve customer on return
+      success_url: `${origin}/dashboard?checkout=success&plan=${plan.id}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/pricing?checkout=cancel`,
       metadata: {
         gatezero_plan: plan.id,
@@ -80,7 +81,31 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
+/** Resolve Checkout session → customer id (for Billing portal after success). */
+export async function GET(req: NextRequest) {
+  const sessionId = req.nextUrl.searchParams.get('session_id');
+
+  if (sessionId && stripe) {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      const customerId =
+        typeof session.customer === 'string'
+          ? session.customer
+          : session.customer && 'id' in session.customer
+            ? (session.customer as { id: string }).id
+            : null;
+      return NextResponse.json({
+        id: session.id,
+        status: session.status,
+        customerId,
+        plan: session.metadata?.gatezero_plan || null
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ error: 'session lookup failed', detail: message }, { status: 502 });
+    }
+  }
+
   return NextResponse.json({
     plans: Object.values(PLANS).map((p) => ({
       id: p.id,
