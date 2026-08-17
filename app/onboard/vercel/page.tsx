@@ -1,4 +1,5 @@
 'use client';
+/* build-stamp: 2026-08-17-ph */
 
 import { useState } from 'react';
 import Link from 'next/link';
