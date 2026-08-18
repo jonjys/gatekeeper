@@ -32,7 +32,7 @@ export default function HomePage() {
           <span className="font-mono hidden sm:inline">
             {uses} uses · est. ${est.toFixed(2)}/mo
           </span>
-          <Link href="/index" className="text-sm text-zinc-400 hover:text-emerald-400 hidden sm:inline">
+          <Link href="/gate" className="text-sm text-zinc-400 hover:text-emerald-400 hidden sm:inline">
             Index
           </Link>
           <Link href="/pricing" className="text-sm text-zinc-400 hover:text-emerald-400 hidden sm:inline">
@@ -160,7 +160,7 @@ fetch('/api/gate/openai/v1/chat/completions', {
               Migrate from Vercel · 3 min
             </Link>
             <Link
-              href="/index"
+              href="/gate"
               className="rounded-lg border border-zinc-700 px-4 py-2 text-sm hover:border-emerald-500/40"
             >
               GateZero Index
