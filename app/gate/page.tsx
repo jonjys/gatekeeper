@@ -1,9 +1,14 @@
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+export const fetchCache = 'force-no-store';
+export const runtime = 'nodejs';
 
 import Link from 'next/link';
 
-/** GateZero Moat — same public index data at /moat */
+/**
+ * GateZero Index — public anonymized traffic moat.
+ * Preferred public route /gate (avoids App Router /index collision).
+ */
 const ROWS = [
   {
     provider: 'OpenAI',
@@ -28,7 +33,7 @@ const ROWS = [
   }
 ];
 
-export default function GateZeroMoatPage() {
+export default function GateZeroGatePage() {
   return (
     <main className="min-h-screen flex flex-col">
       <header className="border-b border-zinc-800 px-5 py-4 flex items-center justify-between">
