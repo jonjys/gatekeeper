@@ -19,7 +19,9 @@ export async function GET() {
       ok: true,
       service: 'gatezero',
       embed: '/gate',
-      routes: { gate: '/gate', moat: '/moat' },
+      engine: 'gatezero-2.0',
+      proxy: '/api/proxy/{provider}/...',
+      routes: { gate: '/gate', moat: '/moat', start: '/start', proxy: '/api/proxy' },
       ts: new Date().toISOString()
     })
   );

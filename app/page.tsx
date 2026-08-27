@@ -59,8 +59,8 @@ export default function HomePage() {
             <span className="text-emerald-400">Spend never surprises.</span>
           </h1>
           <p className="text-zinc-400 text-base sm:text-lg max-w-xl leading-relaxed">
-            API traffic's toll booth. Web Locks. Passkeys + YubiKey. CostRadar kills runaway
-            spend. 2% take-rate — zero secrets on our servers.
+            API traffic spend router. Server proxy encrypts vault keys at rest.
+            20% of verified savings — zero fee if we save nothing.
           </p>
         </section>
 

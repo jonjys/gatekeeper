@@ -50,7 +50,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: 'free',
     name: 'Free',
     amountCents: 0,
-    takeRate: 2,
+    takeRate: 20,
     priceId: null,
     entitlements: FREE_ENTS
   },
@@ -58,7 +58,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: 'pro',
     name: 'GateZero Pro',
     amountCents: 2900,
-    takeRate: 2,
+    takeRate: 20,
     priceId: process.env.STRIPE_PRICE_PRO || null,
     entitlements: PRO_ENTS,
     highlight: true
@@ -67,7 +67,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     id: 'enterprise',
     name: 'GateZero Enterprise',
     amountCents: 29900,
-    takeRate: 1,
+    takeRate: 15,
     priceId: process.env.STRIPE_PRICE_ENTERPRISE || null,
     entitlements: ENT_ENTS
   }
@@ -104,5 +104,5 @@ export function siteUrl(reqOrigin?: string | null): string {
 
 /** Take-rate for a plan (percent points, e.g. 2) */
 export function takeRateFor(planId: PlanId | string | null | undefined): number {
-  return getPlan(String(planId || 'free'))?.takeRate ?? 2;
+  return getPlan(String(planId || 'free'))?.takeRate ?? 20;
 }

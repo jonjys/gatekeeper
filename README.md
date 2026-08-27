@@ -1,29 +1,34 @@
-# GateZero - The last API gateway you'll ever need
+# GateZero 2.0 — API spend router
 
-Your keys never leave your machine. Your money never leaves your pocket.
+Canonical repo. Promptslaktaren/BridgeControl is read-only reference.
 
-Local-first gateway that proxies, locks, rotates and bills all API traffic. **2% take rate.**
+Customer systems send traffic through `/api/proxy/{provider}/...`.
+Policy + cost engine + cheaper-model routing run automatically.
+Verified savings → 20% success fee via Stripe meter `api_proxy_usage`.
+No savings → no success fee.
 
-## Stack
+## Honest secrets
 
-Next.js 14 + Supabase + Stripe + Vercel PWA.
+- **Server proxy (money path):** provider API keys stored encrypted at rest (`GATEZERO_VAULT_KEY`, AES-256-GCM). Decrypted only in memory for the upstream hop.
+- **Browser SW (`/api/gate/…`):** keys stay in IndexedDB under Web Locks. Not a substitute for backend proxy.
 
-**Moat:** Web Locks · File System Access · Service Worker · Background Sync · Compute Pressure.
+## Flow
 
-## Security
+REQUEST → POLICY → COST ENGINE → ROUTING → UPSTREAM → LEDGER → STRIPE METER
 
-Keys in IndexedDB + WebCrypto AES-GCM. Never sent to server. SW holds plaintext <100ms under exclusive lock.
+## Onboard
 
-## Dev
+1. Run `supabase/migrations/003_engine.sql`
+2. Set env (see `.env.example`)
+3. `POST /api/v1/workspace` → `gz_live_…`
+4. `POST /api/v1/credentials` once
+5. Swap base URL to `/api/proxy/openai`
 
-```bash
-cp .env.example .env.local
-pnpm i
-pnpm dev
+## Scripts
+
 ```
-
-Open localhost:3000 → **Import .env** → change fetches to `/api/gate/{provider}/…`.
-
-## License
-
-AGPL-3.0. Self-host free. We bill 2% on hosted.
+npm test
+npm run typecheck
+npm run lint
+npm run build
+```
