@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { plan?: string; email?: string };
+  let body: { plan?: string; email?: string; workspaceId?: string };
   try {
     body = await req.json();
   } catch {
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
             recurring: { interval: 'month' as const },
             product_data: {
               name: plan.name,
-              description: `${plan.takeRate}% take-rate on proxied API spend`
+              description: `${plan.takeRate}% of verified savings (0 if 0)`
             }
           }
         };
@@ -57,11 +57,13 @@ export async function POST(req: NextRequest) {
       cancel_url: `${origin}/pricing?checkout=cancel`,
       metadata: {
         gatezero_plan: plan.id,
+        gatezero_workspace: body.workspaceId || '',
         take_rate: String(plan.takeRate)
       },
       subscription_data: {
         metadata: {
           gatezero_plan: plan.id,
+          gatezero_workspace: body.workspaceId || '',
           take_rate: String(plan.takeRate)
         }
       }

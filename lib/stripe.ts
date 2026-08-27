@@ -6,14 +6,10 @@ export const stripe = secret
   ? new Stripe(secret, { apiVersion: '2023-10-16' })
   : null;
 
-/** Metered take-rate — server only. Keys never touch this module.
- * Stripe Billing Meter event_name must be: api_proxy_usage
- * Aggregation: Sum · Customer key: stripe_customer_id
- * Value = take cents (costUsd * takeRate * 100)
- */
-export async function recordMeteredUsage(customerId: string, costUsd: number) {
+/** Record verified-savings fee in cents on meter api_proxy_usage. */
+export async function recordSavingsFee(customerId: string, feeUsd: number) {
   if (!stripe || !customerId) return;
-  const cents = Math.round(costUsd * 0.02 * 100);
+  const cents = Math.round(feeUsd * 100);
   if (cents < 1) return;
   try {
     await stripe.billing.meterEvents.create({

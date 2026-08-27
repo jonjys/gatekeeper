@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { computeCost } from '../lib/engine/cost';
 import { feeFromSavingsUsd } from '../lib/engine/prices';
-import { decideRoute } from '../lib/engine/route';
+import { applyModelToBody, decideRoute } from '../lib/engine/route';
 import { evaluatePolicy, looksLikeTrapKey } from '../lib/engine/policy';
 import { decryptSecret, encryptSecret, hashToken, maskSecret } from '../lib/engine/vault';
+import { requestFingerprint } from '../lib/engine/dedup';
 
 describe('cost engine', () => {
   it('charges 20% of verified savings when routing to cheaper model', () => {
@@ -15,7 +16,6 @@ describe('cost engine', () => {
       completionTokens: 1_000_000,
       savingsFeeBps: 2000
     });
-    // gpt-4o: 2.5 + 10 = 12.5; mini: 0.15 + 0.6 = 0.75; save 11.75; fee 2.35
     expect(r.baselineUsd).toBe(12.5);
     expect(r.actualUsd).toBe(0.75);
     expect(r.savingsUsd).toBe(11.75);
@@ -36,6 +36,10 @@ describe('cost engine', () => {
     expect(r.savingsUsd).toBe(0);
     expect(r.feeUsd).toBe(0);
   });
+
+  it('15% enterprise bps', () => {
+    expect(feeFromSavingsUsd(10, 1500)).toBe(1.5);
+  });
 });
 
 describe('routing', () => {
@@ -48,6 +52,23 @@ describe('routing', () => {
     });
     expect(d.action).toBe('cheaper_alias');
     expect(d.routedModel).toBe('gpt-4o-mini');
+  });
+
+  it('passthrough when preferCheap is false', () => {
+    const d = decideRoute({
+      provider: 'openai',
+      requestedModel: 'gpt-4o',
+      preferCheap: false,
+      killed: false
+    });
+    expect(d.action).toBe('passthrough');
+    expect(d.routedModel).toBe('gpt-4o');
+  });
+
+  it('rewrites model field only', () => {
+    const out = applyModelToBody(JSON.stringify({ model: 'gpt-4o', messages: [1] }), 'gpt-4o-mini');
+    expect(JSON.parse(out).model).toBe('gpt-4o-mini');
+    expect(JSON.parse(out).messages).toEqual([1]);
   });
 });
 
@@ -65,6 +86,36 @@ describe('policy', () => {
     });
     expect(d.allow).toBe(false);
     expect(d.status).toBe(402);
+  });
+
+  it('fail-open allows over-budget', () => {
+    const d = evaluatePolicy({
+      killed: false,
+      failMode: 'open',
+      monthlySpentUsd: 99,
+      dailySpentUsd: 9,
+      monthlyBudgetUsd: 50,
+      dailyBudgetUsd: 10,
+      trapHit: false,
+      estimatedNextUsd: 2
+    });
+    expect(d.allow).toBe(true);
+  });
+
+  it('killed always 402 even if fail-open', () => {
+    const d = evaluatePolicy({
+      killed: true,
+      failMode: 'open',
+      monthlySpentUsd: 0,
+      dailySpentUsd: 0,
+      monthlyBudgetUsd: 50,
+      dailyBudgetUsd: 10,
+      trapHit: false,
+      estimatedNextUsd: 0
+    });
+    expect(d.allow).toBe(false);
+    expect(d.status).toBe(402);
+    expect(d.code).toBe('KILL');
   });
 
   it('trap returns 451', () => {
@@ -90,5 +141,16 @@ describe('vault', () => {
     expect(decryptSecret(enc)).toBe('sk-secret-value');
     expect(maskSecret('sk-secret-value')).toContain('…');
     expect(hashToken('gz_live_x')).toHaveLength(64);
+  });
+});
+
+describe('dedup fingerprint', () => {
+  it('stable for identical payloads', () => {
+    const a = requestFingerprint({ method: 'POST', provider: 'openai', path: 'v1/x', body: '{"a":1}' });
+    const b = requestFingerprint({ method: 'POST', provider: 'openai', path: 'v1/x', body: '{"a":1}' });
+    const c = requestFingerprint({ method: 'POST', provider: 'openai', path: 'v1/x', body: '{"a":2}' });
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
+    expect(a).toHaveLength(64);
   });
 });

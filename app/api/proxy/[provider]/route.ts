@@ -4,8 +4,8 @@ import { handleProxy } from '@/lib/engine/proxy-handler';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-async function handle(req: NextRequest, ctx: { params: { provider: string; path: string[] } }) {
-  return handleProxy(req, ctx.params.provider, ctx.params.path || []);
+async function handle(req: NextRequest, ctx: { params: { provider: string } }) {
+  return handleProxy(req, ctx.params.provider, []);
 }
 
 export const GET = handle;

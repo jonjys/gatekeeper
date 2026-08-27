@@ -20,8 +20,10 @@ export async function GET() {
       service: 'gatezero',
       embed: '/gate',
       engine: 'gatezero-2.0',
+      product: 'BridgeControl Solo',
       proxy: '/api/proxy/{provider}/...',
-      routes: { gate: '/gate', moat: '/moat', start: '/start', proxy: '/api/proxy' },
+      kill: '/api/v1/kill',
+      routes: { gate: '/gate', moat: '/moat', start: '/start', proxy: '/api/proxy', ledger: '/api/v1/ledger' },
       ts: new Date().toISOString()
     })
   );

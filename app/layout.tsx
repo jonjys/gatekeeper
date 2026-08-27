@@ -3,9 +3,9 @@ import './globals.css';
 import { RegisterSW } from './register-sw';
 
 export const metadata: Metadata = {
-  title: 'GateZero – Keys never leave. Spend never surprises.',
+  title: 'GateZero — API spend router',
   description:
-    'Local-first zero-trust API gateway. Web Locks, File System Access, CostRadar kill-switch. 2% take-rate.',
+    'Toll booth for API traffic. Policy, cheaper routing, ledger. 20% of verified savings — zero if we save nothing.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

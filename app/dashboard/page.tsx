@@ -8,6 +8,7 @@ import VaultBackup from '@/components/VaultBackup';
 import PasskeyGate from '@/components/PasskeyGate';
 import AuditPanel from '@/components/AuditPanel';
 import QueueTransparent from '@/components/QueueTransparent';
+import EnginePanel from '@/components/EnginePanel';
 import { listKeys, deleteKey } from '@/lib/crypto';
 import { fetchUsageEvents } from '@/lib/supabase';
 
@@ -167,6 +168,7 @@ export default function DashboardPage() {
       </header>
 
       <div className="flex-1 max-w-4xl mx-auto w-full px-5 sm:px-8 py-10 space-y-8">
+        <EnginePanel />
         {banner && (
           <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
             {banner}{' '}

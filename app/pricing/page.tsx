@@ -9,16 +9,16 @@ const TIERS = [
     name: 'Free',
     price: '$0',
     period: 'forever',
-    take: '2% take-rate',
+    take: '20% of verified savings',
     features: [
-      'Local AES-GCM vault + Web Locks',
-      'CostRadar budget + kill-switch',
-      'Import .env (File System Access)',
-      'Service Worker proxy path',
-      'Community support'
+      'Spend router + ledger',
+      'Fail-closed kill + daily/monthly caps',
+      'Cheaper-model routing',
+      'Encrypted provider vault',
+      '20% of verified savings (0 if 0)'
     ],
     cta: 'Start free',
-    href: '/',
+    href: '/start',
     highlight: false
   },
   {
@@ -26,13 +26,13 @@ const TIERS = [
     name: 'Pro',
     price: '$29',
     period: '/mo',
-    take: '2% take-rate',
+    take: '20% of verified savings',
     features: [
       'Everything in Free',
-      'Passkeys (WebAuthn) + YubiGate',
-      'Audit log + CSV export',
-      'Priority proxy path',
-      'Stripe Customer Portal'
+      'Stripe Customer Portal',
+      'Metered savings fee via Stripe',
+      'Priority retries',
+      'Passkey unlock for local vault'
     ],
     cta: 'Upgrade to Pro',
     href: null,
@@ -43,13 +43,13 @@ const TIERS = [
     name: 'Enterprise',
     price: '$299',
     period: '/mo',
-    take: '1% take-rate',
+    take: '15% of verified savings',
     features: [
       'Everything in Pro',
-      'Team seats + role metadata',
-      'SSO-ready (passkey per member)',
-      'Custom take-rate contracts',
-      'Dedicated support channel'
+      '15% savings fee',
+      'Custom fail-open contracts',
+      'Team seats',
+      'Dedicated support'
     ],
     cta: 'Start Enterprise',
     href: null,
@@ -59,12 +59,12 @@ const TIERS = [
 
 const FAQ = [
   {
-    q: 'Do my API keys ever leave my machine?',
-    a: 'No. Keys are encrypted with AES-GCM and stored only in IndexedDB. The Service Worker decrypts under an exclusive Web Lock for ~50ms, injects the header, and drops plaintext. Our servers only see metadata (provider, cost estimate) — never secrets.'
+    q: 'Do provider keys sit on your servers?',
+    a: 'Yes, for the money path. They are stored AES-256-GCM at rest and decrypted in memory per upstream hop. Optional browser Service Worker mode still keeps a second vault on-device. We do not claim the proxy is keyless.'
   },
   {
-    q: 'What is the take-rate?',
-    a: 'A percentage of proxied API spend. Free and Pro are 2%; Enterprise is 1%. Seat fees ($0 / $29 / $299) unlock features. Meter events are recorded server-side from cost metadata only.'
+    q: 'What do you charge?',
+    a: 'Seat fees ($0 / $29 / $299) plus a success fee: 20% of verified savings (15% Enterprise). If we do not reduce cost versus the requested model, the fee is $0.'
   },
   {
     q: 'Which browsers work?',
@@ -142,11 +142,10 @@ export default function PricingPage() {
         <div className="text-center space-y-3">
           <p className="badge">pricing</p>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-            Keys stay local. Revenue scales.
+            Pay us only when we save you money.
           </h1>
           <p className="text-zinc-400 max-w-xl mx-auto">
-            Seat fees unlock features. Take-rate on proxied spend only. Zero secrets on
-            our servers — ever.
+            Seat fees unlock the portal. Success fee is 20% of verified savings. Zero if we save nothing.
           </p>
           <p className="text-sm font-mono text-emerald-400/90 pt-1">
             Proxied ${proxied.toLocaleString()} this month · network seed ticker
@@ -240,7 +239,7 @@ export default function PricingPage() {
         </section>
 
         <p className="text-center text-xs text-zinc-500">
-          Cancel anytime via Stripe Customer Portal. Vault ciphertext never leaves your device.
+          Cancel anytime via Stripe Customer Portal. Provider keys in the server vault stay encrypted at rest.
         </p>
       </div>
     </main>
