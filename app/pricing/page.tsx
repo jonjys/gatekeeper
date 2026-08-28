@@ -84,14 +84,27 @@ export default function PricingPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [proxied, setProxied] = useState(128_400);
+  const [proxied, setProxied] = useState(0);
   const [fromBilling, setFromBilling] = useState(false);
 
   useEffect(() => {
-    const id = setInterval(() => {
-      setProxied((n) => n + Math.floor(Math.random() * 40) + 8);
-    }, 2800);
-    return () => clearInterval(id);
+    let cancel = false;
+    async function pull() {
+      try {
+        const r = await fetch('/api/stats');
+        if (!r.ok) return;
+        const d = (await r.json()) as { requests?: number };
+        if (!cancel && typeof d.requests === 'number') setProxied(d.requests);
+      } catch {
+        /* ignore */
+      }
+    }
+    void pull();
+    const id = window.setInterval(pull, 5000);
+    return () => {
+      cancel = true;
+      window.clearInterval(id);
+    };
   }, []);
 
   useEffect(() => {
@@ -127,14 +140,11 @@ export default function PricingPage() {
   return (
     <main className="min-h-screen flex flex-col">
       <header className="border-b border-zinc-800/80 px-5 sm:px-8 py-4 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <span>🔒</span>
-          <span>
-            Gate<span className="text-emerald-400">Zero</span>
-          </span>
+        <Link href="/" className="font-semibold">
+          Gate<span className="text-emerald-400">Zero</span>
         </Link>
-        <Link href="/dashboard" className="text-sm text-zinc-400 hover:text-emerald-400">
-          Dashboard
+        <Link href="/start" className="text-sm text-zinc-400 hover:text-emerald-400">
+          Start
         </Link>
       </header>
 
@@ -148,7 +158,7 @@ export default function PricingPage() {
             Seat fees unlock the portal. Success fee is 20% of verified savings. Zero if we save nothing.
           </p>
           <p className="text-sm font-mono text-emerald-400/90 pt-1">
-            Proxied ${proxied.toLocaleString()} this month · network seed ticker
+            Proxied {proxied.toLocaleString()} hops on this booth · live ledger
           </p>
         </div>
 

@@ -300,6 +300,8 @@ export async function handleProxy(
     if (!HOP.has(k.toLowerCase())) outHeaders.set(k, v);
   });
   outHeaders.set('x-gz-action', route.action);
+  outHeaders.set('x-gz-requested-model', cost.requestedModel || requestedModel || '');
+  outHeaders.set('x-gz-routed-model', cost.routedModel || '');
   outHeaders.set('x-gz-baseline-usd', String(cost.baselineUsd));
   outHeaders.set('x-gz-actual-usd', String(cost.actualUsd));
   outHeaders.set('x-gz-savings-usd', String(cost.savingsUsd));

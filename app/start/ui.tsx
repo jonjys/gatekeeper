@@ -30,6 +30,18 @@ type Ledger = {
   rows?: Row[];
 };
 
+type Hop = {
+  action: string;
+  requested: string;
+  routed: string;
+  baseline: string;
+  actual: string;
+  savings: string;
+  fee: string;
+  reply: string;
+  ledger: string;
+};
+
 export default function StartUi() {
   const [token, setToken] = useState('');
   const [workspaceId, setWorkspaceId] = useState('');
@@ -38,7 +50,7 @@ export default function StartUi() {
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [ledger, setLedger] = useState<Ledger | null>(null);
-  const [pingOut, setPingOut] = useState<string | null>(null);
+  const [hop, setHop] = useState<Hop | null>(null);
   const [copied, setCopied] = useState(false);
 
   const loadLedger = useCallback(async (t: string) => {
@@ -122,15 +134,13 @@ export default function StartUi() {
     }
   }
 
-  async function ping(kind: 'models' | 'chat') {
+  async function runHop(kind: 'models' | 'chat' | 'save') {
     if (!token) return;
     setBusy(true);
-    setPingOut(null);
     try {
       if (kind === 'models') {
         const res = await fetch('/api/proxy/openai/v1/models', { headers: { 'x-gz-key': token } });
         const text = await res.text();
-        const ledgerHdr = res.headers.get('x-gz-ledger');
         let n = 0;
         try {
           const j = JSON.parse(text) as { data?: unknown[] };
@@ -138,46 +148,62 @@ export default function StartUi() {
         } catch {
           /* ignore */
         }
-        if (!res.ok) {
-          setPingOut(text.slice(0, 400));
-          setStatus(`Ping failed ${res.status}`);
-        } else {
-          setPingOut(`${n} models · ledger ${ledgerHdr || 'n/a'}`);
-          setStatus('Proxy live. Models listed through GateZero.');
-        }
+        setHop({
+          action: res.headers.get('x-gz-action') || 'passthrough',
+          requested: 'models',
+          routed: 'models',
+          baseline: res.headers.get('x-gz-baseline-usd') || '0',
+          actual: res.headers.get('x-gz-actual-usd') || '0',
+          savings: res.headers.get('x-gz-savings-usd') || '0',
+          fee: res.headers.get('x-gz-fee-usd') || '0',
+          reply: res.ok ? `${n} models through the booth` : text.slice(0, 240),
+          ledger: res.headers.get('x-gz-ledger') || 'n/a'
+        });
+        setStatus(res.ok ? 'Proxy live.' : `Ping failed ${res.status}`);
       } else {
+        const model = kind === 'save' ? 'gpt-4o' : 'gpt-4o-mini';
+        const content =
+          kind === 'save'
+            ? 'Reply with the single word ok. This hop is a savings proof: requested gpt-4o must route cheaper.'
+            : 'say ok';
         const res = await fetch('/api/proxy/openai/v1/chat/completions', {
           method: 'POST',
           headers: { 'content-type': 'application/json', 'x-gz-key': token },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content: 'say ok' }]
-          })
+          body: JSON.stringify({ model, messages: [{ role: 'user', content }] })
         });
         const text = await res.text();
-        const ledgerHdr = res.headers.get('x-gz-ledger');
-        const fee = res.headers.get('x-gz-fee-usd');
-        const actual = res.headers.get('x-gz-actual-usd');
-        let content = text.slice(0, 280);
+        let reply = text.slice(0, 280);
         try {
           const j = JSON.parse(text) as {
             choices?: Array<{ message?: { content?: string } }>;
-            error?: { message?: string; code?: string };
+            error?: { message?: string };
           };
-          content = j.choices?.[0]?.message?.content || j.error?.message || content;
+          reply = j.choices?.[0]?.message?.content || j.error?.message || reply;
         } catch {
           /* ignore */
         }
-        setPingOut(content);
+        setHop({
+          action: res.headers.get('x-gz-action') || (res.ok ? 'passthrough' : 'error'),
+          requested: res.headers.get('x-gz-requested-model') || model,
+          routed: res.headers.get('x-gz-routed-model') || model,
+          baseline: res.headers.get('x-gz-baseline-usd') || '0',
+          actual: res.headers.get('x-gz-actual-usd') || '0',
+          savings: res.headers.get('x-gz-savings-usd') || '0',
+          fee: res.headers.get('x-gz-fee-usd') || '0',
+          reply,
+          ledger: res.headers.get('x-gz-ledger') || 'n/a'
+        });
         setStatus(
           res.ok
-            ? `Chat live · actual $${actual} · fee $${fee} · ledger ${ledgerHdr}`
-            : `Upstream ${res.status} · ledger ${ledgerHdr}`
+            ? kind === 'save'
+              ? `Routed ${res.headers.get('x-gz-requested-model')} → ${res.headers.get('x-gz-routed-model')}`
+              : 'Chat live.'
+            : `Upstream ${res.status}`
         );
       }
       await loadLedger(token);
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : 'ping failed');
+      setStatus(e instanceof Error ? e.message : 'hop failed');
     } finally {
       setBusy(false);
     }
@@ -204,7 +230,7 @@ export default function StartUi() {
   const host = typeof window !== 'undefined' ? window.location.origin : 'https://gatekeeper-beta-three.vercel.app';
   const snippet = useMemo(
     () =>
-      `curl.exe -s ${host}/api/proxy/openai/v1/chat/completions -H "content-type: application/json" -H "x-gz-key: ${token || 'gz_live_…'}" -d "{\\"model\\":\\"gpt-4o-mini\\",\\"messages\\":[{\\"role\\":\\"user\\",\\"content\\":\\"hi\\"}]}"`,
+      `${host}/api/proxy/openai/v1/chat/completions\nx-gz-key: ${token || 'gz_live_…'}`,
     [host, token]
   );
 
@@ -212,24 +238,85 @@ export default function StartUi() {
   const killed = Boolean(ledger?.killed);
 
   return (
-    <main className="min-h-screen max-w-xl mx-auto px-5 py-12 space-y-8">
+    <main className="min-h-screen max-w-xl mx-auto px-5 py-10 space-y-6">
       <div className="flex items-center justify-between">
         <Link href="/" className="text-sm text-zinc-500 hover:text-emerald-400">
           ← GateZero
         </Link>
-        <p className="badge">{killed ? 'killed' : 'engine live'}</p>
+        <p className="badge">{killed ? 'killed' : 'booth live'}</p>
       </div>
-      <h1 className="text-3xl font-bold tracking-tight">Point traffic. Engine runs.</h1>
+      <h1 className="text-3xl font-bold tracking-tight">The booth.</h1>
       <p className="text-sm text-zinc-400 leading-relaxed">
-        Workspace, vault, ping. Budget kill and 20% of verified savings — no PowerShell required.
+        Vault a key, prove the 20% take, kill if it runs. Built to work from a phone.
       </p>
+
+      {totals && (
+        <section className="grid grid-cols-4 gap-2 text-center">
+          {[
+            ['req', totals.requests],
+            ['spend', `$${Number(totals.actual).toFixed(3)}`],
+            ['saved', `$${Number(totals.savings).toFixed(3)}`],
+            ['take', `$${Number(totals.fee).toFixed(3)}`]
+          ].map(([k, v]) => (
+            <div key={String(k)} className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-3">
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500">{k}</p>
+              <p className="font-mono text-sm mt-1">{v}</p>
+            </div>
+          ))}
+        </section>
+      )}
+
+      <section className="card space-y-3">
+        <h2 className="font-semibold">Prove the take-rate</h2>
+        <p className="text-sm text-zinc-500">
+          Asks for gpt-4o. Engine aliases to gpt-4o-mini. Fee is 20% of the verified delta.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button
+            type="button"
+            disabled={!token || busy}
+            onClick={() => runHop('save')}
+            className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-black disabled:opacity-40 min-h-11"
+          >
+            Prove 20%
+          </button>
+          <button
+            type="button"
+            disabled={!token || busy}
+            onClick={() => runHop('chat')}
+            className="rounded-xl border border-zinc-600 px-4 py-3 text-sm disabled:opacity-40 min-h-11"
+          >
+            Send hi
+          </button>
+          <button
+            type="button"
+            disabled={!token || busy}
+            onClick={() => runHop('models')}
+            className="rounded-xl border border-zinc-600 px-4 py-3 text-sm disabled:opacity-40 min-h-11"
+          >
+            Ping models
+          </button>
+        </div>
+        {hop && (
+          <div className="rounded-xl bg-black/50 p-4 space-y-2 text-sm">
+            <p className="font-mono text-emerald-300">
+              {hop.requested} → {hop.routed} · {hop.action}
+            </p>
+            <p className="text-zinc-400">{hop.reply}</p>
+            <p className="font-mono text-xs text-zinc-500">
+              baseline ${hop.baseline} · actual ${hop.actual} · saved ${hop.savings} · take ${hop.fee} ·
+              ledger {hop.ledger}
+            </p>
+          </div>
+        )}
+      </section>
 
       <section className="card space-y-3">
         <h2 className="font-semibold">1. Workspace</h2>
         {token ? (
           <div className="space-y-2">
             <p className="text-xs font-mono break-all text-emerald-300/90">{token}</p>
-            <button type="button" onClick={copyToken} className="text-xs text-zinc-400 hover:text-emerald-400">
+            <button type="button" onClick={copyToken} className="text-xs text-zinc-400 hover:text-emerald-400 min-h-11">
               {copied ? 'Copied' : 'Copy token'}
             </button>
           </div>
@@ -238,7 +325,7 @@ export default function StartUi() {
             type="button"
             disabled={busy}
             onClick={createWorkspace}
-            className="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-black hover:bg-emerald-400 disabled:opacity-50"
+            className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-black hover:bg-emerald-400 disabled:opacity-50 min-h-11"
           >
             {busy ? 'Creating…' : 'Create workspace'}
           </button>
@@ -251,7 +338,7 @@ export default function StartUi() {
         <select
           value={provider}
           onChange={(e) => setProvider(e.target.value)}
-          className="w-full rounded-lg bg-black/40 border border-zinc-700 px-3 py-2 text-sm"
+          className="w-full rounded-lg bg-black/40 border border-zinc-700 px-3 py-3 text-sm min-h-11"
         >
           <option value="openai">openai</option>
           <option value="anthropic">anthropic</option>
@@ -261,44 +348,16 @@ export default function StartUi() {
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
           placeholder="sk-… stored AES-GCM at rest"
-          className="w-full rounded-lg bg-black/40 border border-zinc-700 px-3 py-2 text-sm"
+          className="w-full rounded-lg bg-black/40 border border-zinc-700 px-3 py-3 text-sm min-h-11"
         />
         <button
           type="button"
           disabled={busy || !token || !secret}
           onClick={saveCredential}
-          className="rounded-xl border border-zinc-600 px-4 py-2.5 text-sm hover:border-emerald-500/50 disabled:opacity-40"
+          className="rounded-xl border border-zinc-600 px-4 py-3 text-sm hover:border-emerald-500/50 disabled:opacity-40 min-h-11"
         >
           Encrypt & store
         </button>
-      </section>
-
-      <section className="card space-y-3">
-        <h2 className="font-semibold">3. Ping the toll booth</h2>
-        <p className="text-sm text-zinc-500">Runs in this browser. Models is free. Chat spends a fraction of a cent.</p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={!token || busy}
-            onClick={() => ping('models')}
-            className="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-black disabled:opacity-40"
-          >
-            Ping models
-          </button>
-          <button
-            type="button"
-            disabled={!token || busy}
-            onClick={() => ping('chat')}
-            className="rounded-xl border border-zinc-600 px-4 py-2.5 text-sm disabled:opacity-40"
-          >
-            Send hi
-          </button>
-        </div>
-        {pingOut && (
-          <pre className="text-xs bg-black/50 rounded-xl p-3 overflow-x-auto text-emerald-300/90 whitespace-pre-wrap">
-            {pingOut}
-          </pre>
-        )}
       </section>
 
       <section className="card space-y-3">
@@ -316,7 +375,7 @@ export default function StartUi() {
             type="button"
             disabled={!token || busy}
             onClick={() => kill('arm')}
-            className="rounded-lg bg-red-500/90 text-black px-4 py-2 text-sm font-semibold disabled:opacity-40"
+            className="rounded-lg bg-red-500/90 text-black px-4 py-3 text-sm font-semibold disabled:opacity-40 min-h-11"
           >
             Kill
           </button>
@@ -324,7 +383,7 @@ export default function StartUi() {
             type="button"
             disabled={!token || busy}
             onClick={() => kill('disarm')}
-            className="rounded-lg border border-zinc-600 px-4 py-2 text-sm disabled:opacity-40"
+            className="rounded-lg border border-zinc-600 px-4 py-3 text-sm disabled:opacity-40 min-h-11"
           >
             Disarm
           </button>
@@ -333,16 +392,6 @@ export default function StartUi() {
 
       <section className="card space-y-3">
         <h2 className="font-semibold">Ledger</h2>
-        <p className="text-zinc-400 text-sm">
-          {totals ? (
-            <>
-              {totals.requests} req · actual ${Number(totals.actual).toFixed(4)} · saved $
-              {Number(totals.savings).toFixed(4)} · fee ${Number(totals.fee).toFixed(4)}
-            </>
-          ) : (
-            'No rows yet — ping models.'
-          )}
-        </p>
         <ul className="space-y-1 max-h-56 overflow-auto text-xs font-mono text-zinc-400">
           {(ledger?.rows || []).slice(0, 16).map((r) => (
             <li key={r.id} className="flex justify-between gap-2 border-b border-zinc-800/80 py-1">
@@ -350,7 +399,7 @@ export default function StartUi() {
                 {r.status} {r.provider} {r.model || r.path || ''} {r.action}
               </span>
               <span className="shrink-0">
-                ${Number(r.actual_usd).toFixed(4)} · fee ${Number(r.fee_usd).toFixed(4)}
+                save ${Number(r.savings_usd).toFixed(4)} · take ${Number(r.fee_usd).toFixed(4)}
               </span>
             </li>
           ))}
@@ -358,7 +407,7 @@ export default function StartUi() {
       </section>
 
       <section className="card space-y-3">
-        <h2 className="font-semibold">Windows snippet</h2>
+        <h2 className="font-semibold">Endpoint</h2>
         <pre className="text-xs bg-black/50 rounded-xl p-4 overflow-x-auto text-emerald-300/90">{snippet}</pre>
       </section>
 

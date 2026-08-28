@@ -6,6 +6,7 @@ import { evaluatePolicy, looksLikeTrapKey } from '../lib/engine/policy';
 import { decryptSecret, encryptSecret, hashToken, maskSecret } from '../lib/engine/vault';
 import { requestFingerprint } from '../lib/engine/dedup';
 import { buildLedgerPayload } from '../lib/engine/workspace';
+import { aggregateLedgerRows } from '../lib/engine/stats';
 
 describe('cost engine', () => {
   it('charges 20% of verified savings when routing to cheaper model', () => {
@@ -175,5 +176,36 @@ describe('ledger payload', () => {
     expect(p.action).toBe('passthrough');
     expect(p.actual_usd).toBe(0.001);
     expect(p.status).toBe(200);
+  });
+});
+
+describe('public stats', () => {
+  it('skips probes and sums savings/fee', () => {
+    const s = aggregateLedgerRows([
+      {
+        provider: 'openai',
+        action: 'cheaper_alias',
+        actual_usd: 0.001,
+        baseline_usd: 0.005,
+        savings_usd: 0.004,
+        fee_usd: 0.0008,
+        created_at: '2026-08-28T10:00:00Z'
+      },
+      { provider: 'probe', action: 'probe', actual_usd: 0, baseline_usd: 0, savings_usd: 0, fee_usd: 0 },
+      {
+        provider: 'openai',
+        action: 'passthrough',
+        actual_usd: 0.002,
+        baseline_usd: 0.002,
+        savings_usd: 0,
+        fee_usd: 0,
+        created_at: '2026-08-28T11:00:00Z'
+      }
+    ]);
+    expect(s.requests).toBe(2);
+    expect(s.savingsUsd).toBeCloseTo(0.004);
+    expect(s.feeUsd).toBeCloseTo(0.0008);
+    expect(s.byProvider[0].provider).toBe('openai');
+    expect(s.lastAt).toBe('2026-08-28T11:00:00Z');
   });
 });

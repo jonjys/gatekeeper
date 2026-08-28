@@ -29,6 +29,8 @@ export async function GET() {
         gate: '/gate',
         moat: '/moat',
         start: '/start',
+        live: '/live',
+        stats: '/api/stats',
         proxy: '/api/proxy',
         ledger: '/api/v1/ledger'
       },

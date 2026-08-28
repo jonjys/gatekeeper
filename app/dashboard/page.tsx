@@ -145,11 +145,8 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen flex flex-col">
       <header className="border-b border-zinc-800 px-5 sm:px-8 py-4 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <span>🔒</span>
-          <span>
-            Gate<span className="text-emerald-400">Zero</span>
-          </span>
+        <Link href="/" className="font-semibold">
+          Gate<span className="text-emerald-400">Zero</span>
         </Link>
         <div className="flex items-center gap-3 text-sm">
           <Link href="/pricing" className="text-zinc-400 hover:text-emerald-400">
