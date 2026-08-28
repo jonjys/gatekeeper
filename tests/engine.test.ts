@@ -5,6 +5,7 @@ import { applyModelToBody, decideRoute } from '../lib/engine/route';
 import { evaluatePolicy, looksLikeTrapKey } from '../lib/engine/policy';
 import { decryptSecret, encryptSecret, hashToken, maskSecret } from '../lib/engine/vault';
 import { requestFingerprint } from '../lib/engine/dedup';
+import { buildLedgerPayload } from '../lib/engine/workspace';
 
 describe('cost engine', () => {
   it('charges 20% of verified savings when routing to cheaper model', () => {
@@ -152,5 +153,27 @@ describe('dedup fingerprint', () => {
     expect(a).toBe(b);
     expect(a).not.toBe(c);
     expect(a).toHaveLength(64);
+  });
+});
+
+describe('ledger payload', () => {
+  it('always has id, action and numeric costs', () => {
+    const p = buildLedgerPayload({
+      workspace_id: '11111111-1111-1111-1111-111111111111',
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      path: 'v1/chat/completions',
+      action: 'passthrough',
+      baseline_usd: 0.001,
+      actual_usd: 0.001,
+      savings_usd: 0,
+      fee_usd: 0,
+      status: 200
+    });
+    expect(p.id).toHaveLength(36);
+    expect(p.idempotency_key.startsWith('auto_')).toBe(true);
+    expect(p.action).toBe('passthrough');
+    expect(p.actual_usd).toBe(0.001);
+    expect(p.status).toBe(200);
   });
 });

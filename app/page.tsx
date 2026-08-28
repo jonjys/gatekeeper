@@ -24,7 +24,7 @@ export default function Landing() {
 
       <div className="flex-1 max-w-3xl mx-auto w-full px-5 py-16 space-y-14">
         <section className="space-y-5">
-          <p className="badge">API spend router</p>
+          <p className="badge">API spend router · live</p>
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight leading-[1.12]">
             Toll booth for API traffic.
             <span className="block text-emerald-400 mt-2">We take 20% of what we save.</span>
@@ -64,7 +64,7 @@ export default function Landing() {
           <div className="card space-y-2">
             <p className="text-emerald-400 text-xs font-semibold uppercase tracking-wider">Ledger</p>
             <p className="font-medium">Cost · saving · fee</p>
-            <p className="text-sm text-zinc-500">Stripe meters only verified savings cents. Zero if we saved nothing.</p>
+            <p className="text-sm text-zinc-500">Every hop is written. Stripe meters only verified savings cents.</p>
           </div>
         </section>
 

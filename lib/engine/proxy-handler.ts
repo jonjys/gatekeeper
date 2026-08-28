@@ -15,7 +15,8 @@ import {
   loadTrapHashes,
   loadWorkspaceByToken,
   markKilled,
-  spendWindows
+  spendWindows,
+  type LedgerWrite
 } from '@/lib/engine/workspace';
 import { stripe } from '@/lib/stripe';
 
@@ -24,6 +25,14 @@ function extractBearerSecret(req: NextRequest): string {
   const m = auth.match(/^(?:Bearer|Basic)\s+(.+)$/i);
   if (m) return m[1].trim();
   return req.headers.get('x-api-key') || '';
+}
+
+function withLedgerHeaders(res: NextResponse, info: { via?: string; error?: string; id?: string; ok?: boolean }) {
+  res.headers.set('x-gz-ledger', info.ok ? 'ok' : 'fail');
+  if (info.via) res.headers.set('x-gz-ledger-via', info.via);
+  if (info.id) res.headers.set('x-gz-ledger-id', info.id);
+  if (info.error) res.headers.set('x-gz-ledger-error', info.error.slice(0, 180));
+  return res;
 }
 
 export async function handleProxy(
@@ -77,17 +86,33 @@ export async function handleProxy(
   }
 
   const rawBody = req.method === 'GET' || req.method === 'HEAD' ? '' : await req.text();
+  const isGet = req.method === 'GET' || req.method === 'HEAD';
   const fp = requestFingerprint({ method: req.method, provider, path, body: rawBody });
-  const deduped = dedupGet(ws.id, fp);
-  if (deduped) {
-    slog('proxy.dedup', { workspace: ws.id, provider, path });
-    return new NextResponse(deduped.body, {
-      status: deduped.status,
-      headers: {
-        'content-type': 'application/json',
-        'x-gz-dedup': '1'
-      }
-    });
+  if (isGet) {
+    const deduped = dedupGet(ws.id, fp);
+    if (deduped) {
+      slog('proxy.dedup', { workspace: ws.id, provider, path });
+      const cached = new NextResponse(deduped.body, {
+        status: deduped.status,
+        headers: {
+          'content-type': 'application/json',
+          'x-gz-dedup': '1'
+        }
+      });
+      const wrote = await insertLedger({
+        workspace_id: ws.id,
+        provider,
+        model: extractModel(rawBody) || null,
+        path,
+        action: 'cache',
+        baseline_usd: 0,
+        actual_usd: 0,
+        savings_usd: 0,
+        fee_usd: 0,
+        status: deduped.status
+      });
+      return withLedgerHeaders(cached, wrote);
+    }
   }
 
   const requestedModel = extractModel(rawBody);
@@ -118,7 +143,7 @@ export async function handleProxy(
     }
     const blocked = JSON.stringify({ error: policy.code, message: policy.message });
     if (idem) memSet(`${gz}:${idem}`, policy.status, blocked);
-    await insertLedger({
+    const wrote = await insertLedger({
       workspace_id: ws.id,
       idempotency_key: idem ? `${idem}:blocked:${policy.code}` : null,
       provider,
@@ -132,10 +157,11 @@ export async function handleProxy(
       status: policy.status
     });
     slog('proxy.block', { workspace: ws.id, provider, code: policy.code, status: policy.status });
-    return new NextResponse(blocked, {
+    const res = new NextResponse(blocked, {
       status: policy.status,
       headers: { 'content-type': 'application/json' }
     });
+    return withLedgerHeaders(res, wrote);
   }
 
   const route = decideRoute({
@@ -197,16 +223,33 @@ export async function handleProxy(
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'upstream_failed';
     slog('proxy.upstream_fail', { level: 'error', workspace: ws.id, provider, detail: msg });
-    return NextResponse.json({ error: 'upstream_failed', detail: msg }, { status: 504 });
+    const wrote = await insertLedger({
+      workspace_id: ws.id,
+      provider,
+      model: requestedModel || null,
+      path,
+      action: 'upstream_fail',
+      baseline_usd: 0,
+      actual_usd: 0,
+      savings_usd: 0,
+      fee_usd: 0,
+      status: 504
+    });
+    return withLedgerHeaders(
+      NextResponse.json({ error: 'upstream_failed', detail: msg }, { status: 504 }),
+      wrote
+    );
   }
 
   const respText = await upstream.text();
   let usage:
     | { prompt_tokens?: number; completion_tokens?: number; input_tokens?: number; output_tokens?: number }
     | undefined;
+  let errType: string | undefined;
   try {
-    const j = JSON.parse(respText) as { usage?: typeof usage };
+    const j = JSON.parse(respText) as { usage?: typeof usage; error?: { type?: string; code?: string } };
     usage = j.usage;
+    errType = j.error?.code || j.error?.type;
   } catch {
     /* ignore */
   }
@@ -220,19 +263,21 @@ export async function handleProxy(
     savingsFeeBps: Number(ws.savings_fee_bps) || 2000
   });
 
-  await insertLedger({
+  const action = !upstream.ok && errType ? `error:${errType}` : route.action;
+  const ledgerRow: LedgerWrite = {
     workspace_id: ws.id,
-    idempotency_key: idem || `auto_${crypto.randomUUID()}`,
+    idempotency_key: idem || null,
     provider,
     model: cost.routedModel,
     path,
-    action: route.action,
+    action,
     baseline_usd: cost.baselineUsd,
     actual_usd: cost.actualUsd,
     savings_usd: cost.savingsUsd,
     fee_usd: cost.feeUsd,
     status: upstream.status
-  });
+  };
+  const wrote = await insertLedger(ledgerRow);
 
   if (cost.feeUsd > 0 && ws.stripe_customer_id && stripe) {
     try {
@@ -260,16 +305,20 @@ export async function handleProxy(
   outHeaders.set('x-gz-savings-usd', String(cost.savingsUsd));
   outHeaders.set('x-gz-fee-usd', String(cost.feeUsd));
   if (idem) memSet(`${gz}:${idem}`, upstream.status, respText);
-  if (upstream.ok) dedupSet(ws.id, fp, upstream.status, respText);
+  if (isGet && upstream.ok) dedupSet(ws.id, fp, upstream.status, respText);
 
   slog('proxy.ok', {
     workspace: ws.id,
     provider,
-    action: route.action,
+    action,
     savings: cost.savingsUsd,
     fee: cost.feeUsd,
-    status: upstream.status
+    status: upstream.status,
+    ledger: wrote.ok,
+    ledgerVia: wrote.via,
+    ledgerError: wrote.error
   });
 
-  return new NextResponse(respText, { status: upstream.status, headers: outHeaders });
+  const res = new NextResponse(respText, { status: upstream.status, headers: outHeaders });
+  return withLedgerHeaders(res, wrote);
 }

@@ -25,16 +25,26 @@ export default function EnginePanel() {
     const t = localStorage.getItem('gz_token') || '';
     setToken(t);
     if (!t) return;
-    fetch('/api/v1/ledger', { headers: { 'x-gz-key': t } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!d) return;
+    let cancel = false;
+    async function pull() {
+      try {
+        const r = await fetch('/api/v1/ledger', { headers: { 'x-gz-key': t } });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (cancel) return;
         setKilled(Boolean(d.killed));
-        setTotals(d.totals || totals);
+        setTotals(d.totals || { requests: 0, actual: 0, savings: 0, fee: 0 });
         setRows(d.rows || []);
-      })
-      .catch(() => undefined);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      } catch {
+        /* ignore */
+      }
+    }
+    void pull();
+    const id = window.setInterval(pull, 5000);
+    return () => {
+      cancel = true;
+      window.clearInterval(id);
+    };
   }, []);
 
   if (!token) {
@@ -77,13 +87,14 @@ export default function EnginePanel() {
         {rows.slice(0, 12).map((r) => (
           <li key={r.id} className="flex justify-between gap-2">
             <span>
-              {r.provider} {r.model || ''} {r.action}
+              {r.status} {r.provider} {r.model || ''} {r.action}
             </span>
             <span>
-              save ${Number(r.savings_usd).toFixed(4)} · fee ${Number(r.fee_usd).toFixed(4)}
+              ${Number(r.actual_usd).toFixed(4)} · fee ${Number(r.fee_usd).toFixed(4)}
             </span>
           </li>
         ))}
+        {!rows.length && <li className="text-zinc-600">No proxied requests yet</li>}
       </ul>
     </section>
   );

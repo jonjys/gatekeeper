@@ -15,6 +15,34 @@ export type Workspace = {
   savings_fee_bps: number;
 };
 
+export type LedgerWrite = {
+  workspace_id: string;
+  idempotency_key?: string | null;
+  provider: string;
+  model?: string | null;
+  path?: string | null;
+  action: string;
+  baseline_usd: number;
+  actual_usd: number;
+  savings_usd: number;
+  fee_usd: number;
+  status?: number | null;
+};
+
+export type LedgerRow = {
+  id: string;
+  provider: string;
+  model: string | null;
+  path: string | null;
+  action: string;
+  baseline_usd: number;
+  actual_usd: number;
+  savings_usd: number;
+  fee_usd: number;
+  status: number | null;
+  created_at: string;
+};
+
 export async function loadWorkspaceByToken(token: string): Promise<Workspace | null> {
   const db = adminDb();
   if (!db) return null;
@@ -28,22 +56,18 @@ export async function loadWorkspaceByToken(token: string): Promise<Workspace | n
 }
 
 export async function spendWindows(workspaceId: string): Promise<{ monthly: number; daily: number }> {
-  const db = adminDb();
-  if (!db) return { monthly: 0, daily: 0 };
+  const rows = await listLedger(workspaceId, 500);
   const monthStart = new Date();
   monthStart.setUTCDate(1);
   monthStart.setUTCHours(0, 0, 0, 0);
   const dayStart = new Date();
   dayStart.setUTCHours(0, 0, 0, 0);
-  const { data } = await db
-    .from('ledger_requests')
-    .select('actual_usd, created_at')
-    .eq('workspace_id', workspaceId)
-    .gte('created_at', monthStart.toISOString());
+  const monthIso = monthStart.toISOString();
+  const dayIso = dayStart.toISOString();
   let monthly = 0;
   let daily = 0;
-  const dayIso = dayStart.toISOString();
-  for (const row of data || []) {
+  for (const row of rows) {
+    if (row.created_at < monthIso) continue;
     const usd = Number(row.actual_usd) || 0;
     monthly += usd;
     if (row.created_at >= dayIso) daily += usd;
@@ -51,12 +75,81 @@ export async function spendWindows(workspaceId: string): Promise<{ monthly: numb
   return { monthly, daily };
 }
 
-export async function insertLedger(row: Record<string, unknown>) {
+export function buildLedgerPayload(row: LedgerWrite) {
+  return {
+    id: crypto.randomUUID(),
+    workspace_id: row.workspace_id,
+    idempotency_key: row.idempotency_key || `auto_${crypto.randomUUID()}`,
+    provider: String(row.provider || 'unknown'),
+    model: row.model ?? null,
+    path: row.path ?? null,
+    action: String(row.action || 'passthrough'),
+    baseline_usd: Number(row.baseline_usd) || 0,
+    actual_usd: Number(row.actual_usd) || 0,
+    savings_usd: Number(row.savings_usd) || 0,
+    fee_usd: Number(row.fee_usd) || 0,
+    status: row.status == null ? null : Number(row.status)
+  };
+}
+
+export async function insertLedger(
+  row: LedgerWrite
+): Promise<{ ok: boolean; id?: string; error?: string; via?: string }> {
   const db = adminDb();
-  if (!db) return;
-  const { error } = await db.from('ledger_requests').insert(row);
-  if (error && !String(error.message).includes('duplicate')) {
-    console.error('ledger_insert', error.message);
+  if (!db) return { ok: false, error: 'db_unavailable' };
+  const payload = buildLedgerPayload(row);
+  const { data, error } = await db.from('ledger_requests').insert(payload).select('id').maybeSingle();
+  if (!error) return { ok: true, id: data?.id, via: 'ledger_requests' };
+
+  console.error('ledger_insert', error.message, error.code, error.details, error.hint);
+
+  const fallback = {
+    stripe_event_id: `gz:${payload.id}`,
+    stripe_customer_id: row.workspace_id,
+    amount_cents: Math.max(0, Math.round((Number(row.actual_usd) || 0) * 100)),
+    kind: JSON.stringify({
+      t: 'proxy',
+      provider: row.provider,
+      model: row.model ?? null,
+      path: row.path ?? null,
+      action: row.action,
+      baseline_usd: Number(row.baseline_usd) || 0,
+      actual_usd: Number(row.actual_usd) || 0,
+      savings_usd: Number(row.savings_usd) || 0,
+      fee_usd: Number(row.fee_usd) || 0,
+      status: row.status ?? null
+    })
+  };
+  const fb = await db.from('billing_ledger').insert(fallback).select('id').maybeSingle();
+  if (fb.error) {
+    console.error('ledger_fallback', fb.error.message, fb.error.code);
+    return { ok: false, error: `${error.message} | fallback: ${fb.error.message}` };
+  }
+  return { ok: true, id: fb.data?.id, via: 'billing_ledger', error: error.message };
+}
+
+function mapBillingFallback(
+  row: { id: string; stripe_event_id?: string; kind?: string; created_at?: string; amount_cents?: number }
+): LedgerRow | null {
+  if (!row.stripe_event_id?.startsWith('gz:')) return null;
+  try {
+    const k = JSON.parse(row.kind || '{}') as Record<string, unknown>;
+    if (k.t !== 'proxy') return null;
+    return {
+      id: row.id,
+      provider: String(k.provider || 'unknown'),
+      model: (k.model as string) || null,
+      path: (k.path as string) || null,
+      action: String(k.action || 'passthrough'),
+      baseline_usd: Number(k.baseline_usd) || 0,
+      actual_usd: Number(k.actual_usd) || 0,
+      savings_usd: Number(k.savings_usd) || 0,
+      fee_usd: Number(k.fee_usd) || 0,
+      status: k.status == null ? null : Number(k.status),
+      created_at: row.created_at || new Date().toISOString()
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -83,7 +176,6 @@ export async function markKilled(workspaceId: string, reason: string) {
     .update({ killed: true, kill_reason: reason, killed_at: new Date().toISOString() })
     .eq('id', workspaceId);
 }
-
 
 export async function setKilled(workspaceId: string, killed: boolean, reason: string) {
   const db = adminDb();
@@ -114,30 +206,35 @@ export async function updateWorkspace(
   await db.from('workspaces').update(patch).eq('id', workspaceId);
 }
 
-export async function listLedger(workspaceId: string, limit = 50) {
+export async function listLedger(workspaceId: string, limit = 50): Promise<LedgerRow[]> {
   const db = adminDb();
   if (!db) return [];
-  const { data } = await db
+  const { data, error } = await db
     .from('ledger_requests')
     .select('id, provider, model, path, action, baseline_usd, actual_usd, savings_usd, fee_usd, status, created_at')
     .eq('workspace_id', workspaceId)
     .order('created_at', { ascending: false })
     .limit(limit);
-  return data || [];
+  const primary = (!error && data ? data : []) as LedgerRow[];
+  if (primary.length) return primary;
+
+  const fb = await db
+    .from('billing_ledger')
+    .select('id, stripe_event_id, kind, created_at, amount_cents')
+    .eq('stripe_customer_id', workspaceId)
+    .like('stripe_event_id', 'gz:%')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  return (fb.data || []).map(mapBillingFallback).filter((r): r is LedgerRow => Boolean(r));
 }
 
 export async function ledgerTotals(workspaceId: string) {
-  const db = adminDb();
-  if (!db) return { requests: 0, actual: 0, savings: 0, fee: 0 };
-  const { data } = await db
-    .from('ledger_requests')
-    .select('actual_usd, savings_usd, fee_usd')
-    .eq('workspace_id', workspaceId);
+  const rows = await listLedger(workspaceId, 500);
   let requests = 0;
   let actual = 0;
   let savings = 0;
   let fee = 0;
-  for (const row of data || []) {
+  for (const row of rows) {
     requests += 1;
     actual += Number(row.actual_usd) || 0;
     savings += Number(row.savings_usd) || 0;
@@ -177,4 +274,19 @@ export async function listCredentials(workspaceId: string) {
     .select('provider, masked, created_at')
     .eq('workspace_id', workspaceId);
   return data || [];
+}
+
+export async function probeLedgerWrite(workspaceId: string) {
+  return insertLedger({
+    workspace_id: workspaceId,
+    provider: 'probe',
+    model: null,
+    path: 'probe',
+    action: 'probe',
+    baseline_usd: 0,
+    actual_usd: 0,
+    savings_usd: 0,
+    fee_usd: 0,
+    status: 204
+  });
 }
