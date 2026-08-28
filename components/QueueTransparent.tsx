@@ -46,7 +46,7 @@ export default function QueueTransparent() {
             </span>
           </h3>
           <p className="text-xs text-zinc-500 mt-0.5">
-            Every call · cost · GateZero 2% fee · est. savings from kill-switch
+            Every call · cost · GateZero 20% of savings · est. savings from kill-switch
           </p>
         </div>
         <div className="flex gap-2">
@@ -77,7 +77,7 @@ export default function QueueTransparent() {
           <p className="text-emerald-400">${totals.cost.toFixed(4)}</p>
         </div>
         <div className="rounded-lg bg-zinc-900/60 px-3 py-2">
-          <p className="text-zinc-500">GateZero 2%</p>
+          <p className="text-zinc-500">GateZero 20%</p>
           <p className="text-amber-400">${totals.fees.toFixed(4)}</p>
         </div>
         <div className="rounded-lg bg-zinc-900/60 px-3 py-2">

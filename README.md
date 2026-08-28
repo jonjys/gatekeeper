@@ -1,41 +1,29 @@
-# GateZero — BridgeControl Solo
+# GateZero
 
-Canonical API spend router. `promptslaktaren` is read-only reference.
+Live: [https://gatekeeper-beta-three.vercel.app/](https://gatekeeper-beta-three.vercel.app/)
 
-Customer systems send traffic through `/api/proxy/{provider}/...`.
-Policy + cost engine + cheaper-model routing run automatically.
-Verified savings → 20% success fee via Stripe meter `api_proxy_usage`.
-No savings → no success fee.
+API spend router. Point traffic at `/api/proxy/{provider}/...`.
+Policy, cheaper-model routing, ledger. **20% of verified savings** — zero if we save nothing.
 
 ```
 REQUEST → POLICY → COST → ROUTE → UPSTREAM → LEDGER → STRIPE
 ```
 
+Open [`/start`](https://gatekeeper-beta-three.vercel.app/start) → vault a key → **Prove 20%**.
+Index: [`/gate`](https://gatekeeper-beta-three.vercel.app/gate) · ticker: [`/live`](https://gatekeeper-beta-three.vercel.app/live)
+
 ## Honest secrets
 
-Server proxy stores provider keys AES-256-GCM at rest (`GATEZERO_VAULT_KEY`).
-Decrypted in memory for the upstream hop. Optional browser SW vault is separate
-and on-device. We do not claim the money path is keyless.
-
-## Onboard
-
-See `MORNING.md`. Short path:
-
-1. SQL `003_engine.sql` + `004_bridge.sql`
-2. Env from `.env.example`
-3. Open `/start` or `POST /api/v1/workspace`
-4. `POST /api/v1/credentials`
-5. Swap base URL to `/api/proxy/openai`
+Server proxy stores provider keys AES-256-GCM (`GATEZERO_VAULT_KEY`).
+Decrypted in memory for the upstream hop. We do not claim the money path is keyless.
 
 ## Control plane
 
+- `POST /api/v1/workspace` then `POST /api/v1/credentials`
 - `POST /api/v1/kill` `{ action: "arm" | "disarm" }`
-- `POST /api/v1/trap` honeypot key → 451
-- `DELETE /api/v1/credentials?provider=openai` burn
-- `GET /api/v1/ledger`
-
-## Scripts
+- `GET /api/v1/ledger` · `GET /api/stats`
+- Header: `x-gz-key: gz_live_…`
 
 ```
-npm test && npm run typecheck && npm run lint && npm run build
+npm test && npm run typecheck && npm run build
 ```

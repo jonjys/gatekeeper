@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 
 /**
- * Stripe metered 2% take-rate test endpoint.
+ * Stripe metered savings-fee test endpoint (20% of verified savings).
  * Accepts only metadata: customerId + costUsd.
  * Never receives API keys or vault secrets.
  */
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       skipped: true,
-      reason: 'sub-cent after 2%',
+      reason: 'sub-cent after savings fee',
       costUsd,
       takeUsd: costUsd * takeRate
     });
@@ -71,6 +71,6 @@ export async function GET() {
     endpoint: '/api/meter',
     method: 'POST',
     body: { customerId: 'cus_xxx', costUsd: 10.5 },
-    note: 'Records 2% take-rate meter event. Never send API keys here.'
+    note: 'Records savings-fee meter event. Never send API keys here.'
   });
 }

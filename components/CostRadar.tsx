@@ -124,7 +124,7 @@ export default function CostRadar() {
       <p className="text-xs font-mono text-zinc-500">
         {over
           ? 'Budget hit — gates return 503 until raised'
-          : `$${left.toFixed(2)} left · 2% fee only on proxied spend`}
+          : `$${left.toFixed(2)} left · 20% fee only on verified savings`}
       </p>
       <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
         <div

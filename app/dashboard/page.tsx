@@ -210,7 +210,7 @@ export default function DashboardPage() {
                 </p>
               </div>
               <div className="card">
-                <p className="text-xs text-zinc-500 uppercase tracking-wider">Our 2%</p>
+                <p className="text-xs text-zinc-500 uppercase tracking-wider">Our 20%</p>
                 <p className="text-2xl font-mono mt-1 text-amber-400">
                   ${(totals.cost * 0.02).toFixed(4)}
                 </p>
