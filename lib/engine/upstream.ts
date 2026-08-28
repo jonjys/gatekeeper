@@ -14,7 +14,9 @@ export const HOP = new Set([
   'transfer-encoding',
   'upgrade',
   'host',
-  'content-length'
+  'content-length',
+  'content-encoding',
+  'content-md5'
 ]);
 
 export async function fetchWithRetry(

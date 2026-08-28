@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireWorkspace } from '@/lib/engine/auth';
-import { ledgerTotals, listLedger, probeLedgerWrite, spendWindows } from '@/lib/engine/workspace';
+import { listLedger, probeLedgerWrite, summarizeLedger } from '@/lib/engine/workspace';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,11 +11,8 @@ export async function GET(req: NextRequest) {
     const probe = await probeLedgerWrite(auth.ws.id);
     return NextResponse.json({ probe, workspaceId: auth.ws.id });
   }
-  const [rows, totals, spend] = await Promise.all([
-    listLedger(auth.ws.id, 80),
-    ledgerTotals(auth.ws.id),
-    spendWindows(auth.ws.id)
-  ]);
+  const rows = await listLedger(auth.ws.id, 80);
+  const { totals, spend } = summarizeLedger(rows);
   return NextResponse.json({
     workspaceId: auth.ws.id,
     killed: auth.ws.killed,

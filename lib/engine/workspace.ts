@@ -43,6 +43,9 @@ export type LedgerRow = {
   created_at: string;
 };
 
+const LEDGER_SELECT =
+  'id, provider, model, action, baseline_usd, actual_usd, savings_usd, fee_usd, status, created_at';
+
 export async function loadWorkspaceByToken(token: string): Promise<Workspace | null> {
   const db = adminDb();
   if (!db) return null;
@@ -55,8 +58,11 @@ export async function loadWorkspaceByToken(token: string): Promise<Workspace | n
   return data as Workspace;
 }
 
-export async function spendWindows(workspaceId: string): Promise<{ monthly: number; daily: number }> {
-  const rows = await listLedger(workspaceId, 500);
+export function summarizeLedger(rows: LedgerRow[]) {
+  let requests = 0;
+  let actual = 0;
+  let savings = 0;
+  let fee = 0;
   const monthStart = new Date();
   monthStart.setUTCDate(1);
   monthStart.setUTCHours(0, 0, 0, 0);
@@ -67,12 +73,20 @@ export async function spendWindows(workspaceId: string): Promise<{ monthly: numb
   let monthly = 0;
   let daily = 0;
   for (const row of rows) {
-    if (row.created_at < monthIso) continue;
+    requests += 1;
     const usd = Number(row.actual_usd) || 0;
-    monthly += usd;
+    actual += usd;
+    savings += Number(row.savings_usd) || 0;
+    fee += Number(row.fee_usd) || 0;
+    if (row.created_at >= monthIso) monthly += usd;
     if (row.created_at >= dayIso) daily += usd;
   }
-  return { monthly, daily };
+  return { totals: { requests, actual, savings, fee }, spend: { monthly, daily } };
+}
+
+export async function spendWindows(workspaceId: string): Promise<{ monthly: number; daily: number }> {
+  const rows = await listLedger(workspaceId, 500);
+  return summarizeLedger(rows).spend;
 }
 
 export function buildLedgerPayload(row: LedgerWrite) {
@@ -206,17 +220,18 @@ export async function updateWorkspace(
   await db.from('workspaces').update(patch).eq('id', workspaceId);
 }
 
-export async function listLedger(workspaceId: string, limit = 50): Promise<LedgerRow[]> {
+export async function listLedger(workspaceId: string, limit = 80): Promise<LedgerRow[]> {
   const db = adminDb();
   if (!db) return [];
   const { data, error } = await db
     .from('ledger_requests')
-    .select('id, provider, model, path, action, baseline_usd, actual_usd, savings_usd, fee_usd, status, created_at')
+    .select(LEDGER_SELECT)
     .eq('workspace_id', workspaceId)
     .order('created_at', { ascending: false })
     .limit(limit);
+  if (error) console.error('listLedger', error.message, error.code, error.details);
   const primary = (!error && data ? data : []) as LedgerRow[];
-  if (primary.length) return primary;
+  if (primary.length) return primary.map((r) => ({ ...r, path: r.path ?? null }));
 
   const fb = await db
     .from('billing_ledger')
@@ -229,18 +244,7 @@ export async function listLedger(workspaceId: string, limit = 50): Promise<Ledge
 }
 
 export async function ledgerTotals(workspaceId: string) {
-  const rows = await listLedger(workspaceId, 500);
-  let requests = 0;
-  let actual = 0;
-  let savings = 0;
-  let fee = 0;
-  for (const row of rows) {
-    requests += 1;
-    actual += Number(row.actual_usd) || 0;
-    savings += Number(row.savings_usd) || 0;
-    fee += Number(row.fee_usd) || 0;
-  }
-  return { requests, actual, savings, fee };
+  return summarizeLedger(await listLedger(workspaceId, 500)).totals;
 }
 
 export async function loadTrapHashes(workspaceId: string): Promise<string[]> {
