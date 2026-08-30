@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { IosPasteGuard } from '@/components/IosPasteGuard';
 
 export function RegisterSW() {
   useEffect(() => {
@@ -10,5 +11,5 @@ export function RegisterSW() {
       .then((reg) => console.log('[GateZero] SW registered', reg.scope))
       .catch((err) => console.warn('[GateZero] SW failed', err));
   }, []);
-  return null;
+  return <IosPasteGuard />;
 }

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import KillSwitchPro from '@/components/KillSwitchPro';
+import VacuumTrapPanel from '@/components/VacuumTrapPanel';
 
 const TOKEN_KEY = 'gz_token';
 const WS_KEY = 'gz_workspace';
@@ -112,23 +114,6 @@ export default function StartUi() {
       setStatus(`Vaulted ${provider} as ${data.masked}. Encrypted at rest.`);
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function kill(action: 'arm' | 'disarm') {
-    if (!token) return;
-    setBusy(true);
-    try {
-      const res = await fetch('/api/v1/kill', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-gz-key': token },
-        body: JSON.stringify({ action, reason: 'manual' })
-      });
-      const data = await res.json();
-      setStatus(data.status || data.error);
-      await loadLedger(token);
     } finally {
       setBusy(false);
     }
@@ -348,6 +333,10 @@ export default function StartUi() {
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
           placeholder="sk-… stored AES-GCM at rest"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
           className="w-full rounded-lg bg-black/40 border border-zinc-700 px-3 py-3 text-sm min-h-11"
         />
         <button
@@ -362,33 +351,26 @@ export default function StartUi() {
 
       <section className="card space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="font-semibold">Kill switch</h2>
-          <button type="button" onClick={toggleCheap} className="text-xs text-zinc-400 hover:text-emerald-400">
-            cheaper alias {ledger?.preferCheap !== false ? 'ON' : 'OFF'}
+          <h2 className="font-semibold">Cheaper alias</h2>
+          <button type="button" onClick={toggleCheap} className="text-xs text-zinc-400 hover:text-emerald-400 min-h-11">
+            {ledger?.preferCheap !== false ? 'ON' : 'OFF'}
           </button>
         </div>
-        <p className="text-sm text-zinc-500">
-          {killed ? 'KILLED — proxy returns 402' : 'Live — fail-closed budgets still apply'}
-        </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            disabled={!token || busy}
-            onClick={() => kill('arm')}
-            className="rounded-lg bg-red-500/90 text-black px-4 py-3 text-sm font-semibold disabled:opacity-40 min-h-11"
-          >
-            Kill
-          </button>
-          <button
-            type="button"
-            disabled={!token || busy}
-            onClick={() => kill('disarm')}
-            className="rounded-lg border border-zinc-600 px-4 py-3 text-sm disabled:opacity-40 min-h-11"
-          >
-            Disarm
-          </button>
-        </div>
+        <p className="text-sm text-zinc-500">gpt-4o → gpt-4o-mini when on. Fee is 20% of the verified delta.</p>
       </section>
+
+      <KillSwitchPro
+        token={token}
+        killed={killed}
+        budgetUsd={Number(ledger?.monthlyBudgetUsd) || 50}
+        spendUsd={Number(ledger?.spend?.monthly) || Number(totals?.actual) || 0}
+        rows={ledger?.rows || []}
+        busy={busy}
+        onChanged={() => (token ? loadLedger(token) : Promise.resolve())}
+        onStatus={setStatus}
+      />
+
+      <VacuumTrapPanel token={token} busy={busy} onStatus={setStatus} />
 
       <section className="card space-y-3">
         <h2 className="font-semibold">Ledger</h2>

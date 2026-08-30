@@ -43,5 +43,5 @@ export function evaluatePolicy(p: PolicyInput): PolicyDecision {
 }
 
 export function looksLikeTrapKey(auth: string): boolean {
-  return /sk_test_trap_|trap_honeypot/i.test(auth);
+  return /sk_test_trap_|sk-trap_|trap_honeypot/i.test(auth);
 }

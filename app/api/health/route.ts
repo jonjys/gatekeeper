@@ -32,7 +32,9 @@ export async function GET() {
         live: '/live',
         stats: '/api/stats',
         proxy: '/api/proxy',
-        ledger: '/api/v1/ledger'
+        ledger: '/api/v1/ledger',
+        spike: '/api/v1/spike',
+        trap: '/api/v1/trap'
       },
       flags: {
         supabase: Boolean(db),

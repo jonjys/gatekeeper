@@ -7,6 +7,7 @@ import { decryptSecret, encryptSecret, hashToken, maskSecret } from '../lib/engi
 import { requestFingerprint } from '../lib/engine/dedup';
 import { buildLedgerPayload } from '../lib/engine/workspace';
 import { aggregateLedgerRows } from '../lib/engine/stats';
+import { mintTrapSecret } from '../lib/vacuum';
 
 describe('cost engine', () => {
   it('charges 20% of verified savings when routing to cheaper model', () => {
@@ -207,5 +208,15 @@ describe('public stats', () => {
     expect(s.feeUsd).toBeCloseTo(0.0008);
     expect(s.byProvider[0].provider).toBe('openai');
     expect(s.lastAt).toBe('2026-08-28T11:00:00Z');
+  });
+});
+
+describe('trap mint', () => {
+  it('issues unique sk-trap_ secrets', () => {
+    const a = mintTrapSecret();
+    const b = mintTrapSecret();
+    expect(a.startsWith('sk-trap_')).toBe(true);
+    expect(a).not.toBe(b);
+    expect(looksLikeTrapKey(a)).toBe(true);
   });
 });

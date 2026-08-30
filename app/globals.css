@@ -8,10 +8,27 @@
   --accent: #10b981;
 }
 
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
 html, body {
   background: #0a0a0a;
   color: #fafafa;
   min-height: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior-y: contain;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 
 body {
@@ -29,4 +46,17 @@ code, .font-mono {
 
 .badge {
   @apply inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-400;
+}
+
+button,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
