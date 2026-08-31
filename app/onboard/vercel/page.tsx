@@ -29,7 +29,7 @@ export default function OnboardVercelPage() {
       await new Promise((r) => setTimeout(r, 900 + Math.random() * 800));
 
       const gateway =
-        typeof window !== 'undefined' ? window.location.origin : 'https://gatezero.app';
+        typeof window !== 'undefined' ? window.location.origin : 'https://getgatezero.com';
       const env = `# GateZero migration — ${new Date().toISOString()}
 # Secrets stay in GateZero local vault. Apps only need the gateway URL.
 GATEWAY_URL=${gateway}/api/gate

@@ -79,7 +79,7 @@ export default async function Landing() {
 
         <section className="card space-y-3">
           <h2 className="font-semibold">One line change</h2>
-          <pre className="text-xs sm:text-sm bg-black/50 rounded-xl p-4 overflow-x-auto text-emerald-300/90 leading-relaxed">{`https://gatekeeper-beta-three.vercel.app/api/proxy/openai/v1/chat/completions
+          <pre className="text-xs sm:text-sm bg-black/50 rounded-xl p-4 overflow-x-auto text-emerald-300/90 leading-relaxed">{`https://getgatezero.com/api/proxy/openai/v1/chat/completions
 Header: x-gz-key: gz_live_…`}</pre>
         </section>
 

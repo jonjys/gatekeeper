@@ -212,7 +212,7 @@ export default function StartUi() {
     window.setTimeout(() => setCopied(false), 1500);
   }
 
-  const host = typeof window !== 'undefined' ? window.location.origin : 'https://gatekeeper-beta-three.vercel.app';
+  const host = typeof window !== 'undefined' ? window.location.origin : 'https://getgatezero.com';
   const snippet = useMemo(
     () =>
       `${host}/api/proxy/openai/v1/chat/completions\nx-gz-key: ${token || 'gz_live_…'}`,

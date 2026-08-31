@@ -98,7 +98,7 @@ export function siteUrl(reqOrigin?: string | null): string {
   return (
     process.env.NEXT_PUBLIC_SITE_URL ||
     reqOrigin ||
-    'https://gatezero.app'
+    'https://getgatezero.com'
   ).replace(/\/$/, '');
 }
 

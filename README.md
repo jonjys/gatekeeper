@@ -1,6 +1,6 @@
 # GateZero
 
-Live: [https://gatekeeper-beta-three.vercel.app/](https://gatekeeper-beta-three.vercel.app/)
+Live: [https://getgatezero.com](https://getgatezero.com)
 
 API spend router. Point traffic at `/api/proxy/{provider}/...`.
 Policy, cheaper-model routing, ledger. **20% of verified savings** — zero if we save nothing.
@@ -9,8 +9,8 @@ Policy, cheaper-model routing, ledger. **20% of verified savings** — zero if w
 REQUEST → POLICY → COST → ROUTE → UPSTREAM → LEDGER → STRIPE
 ```
 
-Open [`/start`](https://gatekeeper-beta-three.vercel.app/start) → vault a key → **Prove 20%**.
-Index: [`/gate`](https://gatekeeper-beta-three.vercel.app/gate) · ticker: [`/live`](https://gatekeeper-beta-three.vercel.app/live)
+Open [`/start`](https://getgatezero.com/start) → vault a key → **Prove 20%**.
+Index: [`/gate`](https://getgatezero.com/gate) · ticker: [`/live`](https://getgatezero.com/live)
 
 ## Honest secrets
 

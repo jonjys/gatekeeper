@@ -21,7 +21,7 @@ export default function OnboardDopplerPage() {
         throw new Error('Paste a Doppler token or leave blank for dry-run.');
       await new Promise((r) => setTimeout(r, 1000 + Math.random() * 900));
       const gateway =
-        typeof window !== 'undefined' ? window.location.origin : 'https://gatezero.app';
+        typeof window !== 'undefined' ? window.location.origin : 'https://getgatezero.com';
       const env = `# GateZero ← Doppler ${config}
 GATEWAY_URL=${gateway}/api/gate
 # Secrets imported to on-device vault — not stored in Doppler sync target
