@@ -59,7 +59,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     name: 'GateZero Pro',
     amountCents: 2900,
     takeRate: 20,
-    priceId: process.env.STRIPE_PRICE_PRO || null,
+    priceId: process.env.STRIPE_PRICE_PRO || 'price_1U59ENBEo0YzuylweNsgp15c',
     entitlements: PRO_ENTS,
     highlight: true
   },
@@ -68,7 +68,7 @@ export const PLANS: Record<PlanId, PlanConfig> = {
     name: 'GateZero Enterprise',
     amountCents: 29900,
     takeRate: 15,
-    priceId: process.env.STRIPE_PRICE_ENTERPRISE || null,
+    priceId: process.env.STRIPE_PRICE_ENTERPRISE || 'price_1U59a6BEo0YzuylwSSGKkWlw',
     entitlements: ENT_ENTS
   }
 };

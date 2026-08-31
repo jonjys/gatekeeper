@@ -119,10 +119,12 @@ export default function PricingPage() {
     setBusy(plan);
     setError(null);
     try {
+      const workspaceId =
+        typeof window !== 'undefined' ? localStorage.getItem('gz_workspace') || '' : '';
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan })
+        body: JSON.stringify({ plan, workspaceId })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || data.error || 'Checkout failed');

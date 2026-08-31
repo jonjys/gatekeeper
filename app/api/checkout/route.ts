@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       customer_email: body.email || undefined,
       line_items: [lineItem],
       // {CHECKOUT_SESSION_ID} is replaced by Stripe so we can resolve customer on return
-      success_url: `${origin}/dashboard?checkout=success&plan=${plan.id}&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${origin}/start?checkout=success&plan=${plan.id}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/pricing?checkout=cancel`,
       metadata: {
         gatezero_plan: plan.id,

@@ -66,6 +66,15 @@ export default function StartUi() {
     setToken(t);
     setWorkspaceId(w);
     if (t) void loadLedger(t);
+    if (typeof window === 'undefined') return;
+    const sessionId = new URLSearchParams(window.location.search).get('session_id');
+    if (!sessionId || !sessionId.startsWith('cs_')) return;
+    void fetch(`/api/checkout?session_id=${encodeURIComponent(sessionId)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.customerId) setStatus(`Plan active${d.plan ? ` (${d.plan})` : ''}. Stripe customer linked.`);
+      })
+      .catch(() => {});
   }, [loadLedger]);
 
   useEffect(() => {

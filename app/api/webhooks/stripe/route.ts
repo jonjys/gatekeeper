@@ -35,6 +35,15 @@ export async function POST(req: NextRequest) {
         .eq('id', ws);
     }
   }
+  if (event.type === 'customer.subscription.deleted' && db) {
+    const sub = event.data.object as { customer?: string };
+    if (sub.customer) {
+      await db
+        .from('workspaces')
+        .update({ plan: 'free' })
+        .eq('stripe_customer_id', String(sub.customer));
+    }
+  }
   if ((event.type === 'invoice.paid' || event.type === 'invoice.payment_succeeded') && db) {
     const inv = event.data.object as { id?: string; customer?: string; amount_paid?: number };
     await db.from('billing_ledger').insert({
