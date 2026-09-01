@@ -5,7 +5,7 @@
 
 const DB_NAME = 'gatekeeper';
 const STORE = 'usage_queue';
-const TAKE_RATE = 0.02;
+const TAKE_RATE = 0.2;
 
 export type QueueItem = {
   id?: number;
@@ -49,12 +49,10 @@ function idbReq<T>(req: IDBRequest<T>): Promise<T> {
   });
 }
 
-/** Heuristic: kill-switch + budget visibility saves ~15% runaway vs unmetered */
+/** Fee is 20% of verified savings. This queue has cost only — no invented savings. */
 export function enrichItem(r: QueueItem): EnrichedQueueItem {
   const cost = Number(r.cost) || 0;
-  const gatezero_fee = Math.round(cost * TAKE_RATE * 1e6) / 1e6;
-  const est_savings = Math.round(cost * 0.15 * 1e6) / 1e6;
-  return { ...r, gatezero_fee, est_savings };
+  return { ...r, gatezero_fee: 0, est_savings: 0, cost };
 }
 
 export async function listQueue(limit = 50): Promise<EnrichedQueueItem[]> {

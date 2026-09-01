@@ -7,6 +7,7 @@ import { decryptSecret, encryptSecret, hashToken, maskSecret } from '../lib/engi
 import { requestFingerprint } from '../lib/engine/dedup';
 import { buildLedgerPayload } from '../lib/engine/workspace';
 import { aggregateLedgerRows } from '../lib/engine/stats';
+import { summarizeLedger } from '../lib/engine/workspace';
 import { mintTrapSecret } from '../lib/vacuum';
 
 describe('cost engine', () => {
@@ -217,6 +218,39 @@ describe('public stats', () => {
     expect(s.feeUsd).toBeCloseTo(0.0008);
     expect(s.byProvider[0].provider).toBe('openai');
     expect(s.lastAt).toBe('2026-08-28T11:00:00Z');
+  });
+
+  it('spend windows ignore sim spikes so disarm still works', () => {
+    const s = summarizeLedger([
+      {
+        id: '1',
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        path: '/v1/chat',
+        action: 'cheaper_alias',
+        baseline_usd: 0.01,
+        actual_usd: 0.002,
+        savings_usd: 0.008,
+        fee_usd: 0.0016,
+        status: 200,
+        created_at: new Date().toISOString()
+      },
+      {
+        id: '2',
+        provider: 'sim',
+        model: 'spike',
+        path: '/sim/10k',
+        action: 'spike',
+        baseline_usd: 10000,
+        actual_usd: 10000,
+        savings_usd: 0,
+        fee_usd: 0,
+        status: 402,
+        created_at: new Date().toISOString()
+      }
+    ]);
+    expect(s.spend.monthly).toBeCloseTo(0.002);
+    expect(s.totals.requests).toBe(1);
   });
 });
 

@@ -4,7 +4,7 @@ import { applyModelToBody, decideRoute, extractModel } from '@/lib/engine/route'
 import { evaluatePolicy, looksLikeTrapKey } from '@/lib/engine/policy';
 import { memGet, memSet } from '@/lib/engine/idempotency';
 import { rateLimit } from '@/lib/engine/ratelimit';
-import { fetchWithRetry, HOP, UPSTREAM } from '@/lib/engine/upstream';
+import { fetchWithRetry, FORWARD, HOP, UPSTREAM } from '@/lib/engine/upstream';
 import { decryptSecret, hashToken } from '@/lib/engine/vault';
 import { dedupGet, dedupSet, requestFingerprint } from '@/lib/engine/dedup';
 import { slog } from '@/lib/engine/log';
@@ -126,6 +126,7 @@ export async function handleProxy(
   const headerKilled = req.headers.get('x-bc-killed') === '1' || req.headers.get('x-gz-killed') === '1';
 
   const spend = await spendWindows(ws.id);
+  const estimatedNextUsd = /gpt-4o(?!-mini)/i.test(requestedModel || '') ? 0.25 : 0.05;
   const policy = evaluatePolicy({
     killed: ws.killed || headerKilled,
     failMode: ws.fail_mode,
@@ -134,7 +135,7 @@ export async function handleProxy(
     monthlyBudgetUsd: Number(ws.monthly_budget_usd) || 0,
     dailyBudgetUsd: Number(ws.daily_budget_usd) || 0,
     trapHit,
-    estimatedNextUsd: 0.01
+    estimatedNextUsd
   });
 
   if (!policy.allow) {
@@ -172,7 +173,7 @@ export async function handleProxy(
   });
   const outboundBody = applyModelToBody(rawBody, route.routedModel);
 
-  let upstreamAuth = req.headers.get('x-upstream-authorization') || '';
+  let upstreamAuth = '';
   const cred = await loadCredential(ws.id, provider);
   if (cred) {
     try {
@@ -194,10 +195,7 @@ export async function handleProxy(
 
   const headers = new Headers();
   req.headers.forEach((v, k) => {
-    const lk = k.toLowerCase();
-    if (!HOP.has(lk) && !lk.startsWith('x-gz') && !lk.startsWith('x-bc') && lk !== 'authorization') {
-      headers.set(k, v);
-    }
+    if (FORWARD.has(k.toLowerCase())) headers.set(k, v);
   });
   if (provider === 'anthropic') {
     headers.set('x-api-key', upstreamAuth.replace(/^Bearer\s+/i, ''));

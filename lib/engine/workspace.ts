@@ -73,6 +73,8 @@ export function summarizeLedger(rows: LedgerRow[]) {
   let monthly = 0;
   let daily = 0;
   for (const row of rows) {
+    if (row.action === 'probe' || row.action === 'spike') continue;
+    if (String(row.provider || '').toLowerCase() === 'sim') continue;
     requests += 1;
     const usd = Number(row.actual_usd) || 0;
     actual += usd;

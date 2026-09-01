@@ -64,9 +64,8 @@ export default function CostRadar() {
   }
 
   function showKillToast(blockedUsd: number) {
-    const fee = blockedUsd * 0.02;
     setToast(
-      `Blocked $${blockedUsd.toFixed(2)} in runaway spend. GateZero fee: $${fee.toFixed(2)}`
+      `Blocked $${blockedUsd.toFixed(2)} in runaway spend. GateZero fee $0 — kill is not savings.`
     );
     window.setTimeout(() => setToast(null), 6000);
   }

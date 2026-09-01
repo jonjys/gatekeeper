@@ -16,7 +16,21 @@ export const HOP = new Set([
   'host',
   'content-length',
   'content-encoding',
-  'content-md5'
+  'content-md5',
+  'cookie',
+  'set-cookie',
+  'authorization',
+  'x-api-key',
+  'x-upstream-authorization'
+]);
+
+/** Only these client headers may ride to the provider. */
+export const FORWARD = new Set([
+  'content-type',
+  'accept',
+  'anthropic-version',
+  'openai-beta',
+  'openai-organization'
 ]);
 
 export async function fetchWithRetry(
@@ -25,7 +39,9 @@ export async function fetchWithRetry(
   opts: { timeoutMs?: number; retries?: number } = {}
 ): Promise<Response> {
   const timeoutMs = opts.timeoutMs ?? 30_000;
-  const retries = opts.retries ?? 3;
+  const method = String(init.method || 'GET').toUpperCase();
+  const safe = method === 'GET' || method === 'HEAD';
+  const retries = safe ? opts.retries ?? 3 : 1;
   let lastErr: unknown;
   for (let i = 0; i < retries; i++) {
     const ctrl = new AbortController();
@@ -33,7 +49,7 @@ export async function fetchWithRetry(
     try {
       const res = await fetch(url, { ...init, signal: ctrl.signal });
       clearTimeout(t);
-      if (res.status >= 500 && i < retries - 1) {
+      if (safe && res.status >= 500 && i < retries - 1) {
         await sleep(200 * 2 ** i);
         continue;
       }

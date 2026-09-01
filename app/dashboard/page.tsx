@@ -110,24 +110,20 @@ export default function DashboardPage() {
     setBillingBusy(true);
     setBanner(null);
     try {
-      const customerId =
-        new URLSearchParams(window.location.search).get('customer') ||
-        localStorage.getItem(CUSTOMER_KEY);
-
-      if (!customerId || !customerId.startsWith('cus_')) {
+      const token = localStorage.getItem('gz_token') || '';
+      if (!token.startsWith('gz_')) {
         setBanner(
-          'No Stripe customer yet. Upgrade on Pricing first — then Billing opens the portal.'
+          'No workspace on this device. Open Start, then upgrade on Pricing — Billing uses your booth token.'
         );
         window.setTimeout(() => {
-          window.location.href = '/pricing?billing=1';
+          window.location.href = '/start';
         }, 900);
         return;
       }
 
       const res = await fetch('/api/portal', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId })
+        headers: { 'Content-Type': 'application/json', 'x-gz-key': token }
       });
       const data = await res.json();
       if (data.url) {

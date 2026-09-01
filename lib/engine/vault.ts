@@ -13,7 +13,9 @@ export function mintWorkspaceToken(): string {
 function keyBuf(): Buffer {
   const raw = process.env.GATEZERO_VAULT_KEY || '';
   if (/^[0-9a-fA-F]{64}$/.test(raw)) return Buffer.from(raw, 'hex');
-  // derive from any string so preview can boot; production MUST set 32-byte hex
+  if (process.env.VERCEL_ENV === 'production') {
+    throw new Error('GATEZERO_VAULT_KEY must be 64 hex chars in production');
+  }
   return createHash('sha256').update(raw || 'gatezero-dev-vault-key').digest();
 }
 

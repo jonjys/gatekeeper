@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/supabase-admin';
 import { hashToken, mintWorkspaceToken } from '@/lib/engine/vault';
 import { SAVINGS_FEE_BPS } from '@/lib/engine/prices';
+import { rateLimit } from '@/lib/engine/ratelimit';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anon';
+  if (!rateLimit(`ws:${ip}`, 8, 60_000)) {
+    return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+  }
   const db = adminDb();
   if (!db) {
     return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY required' }, { status: 503 });
