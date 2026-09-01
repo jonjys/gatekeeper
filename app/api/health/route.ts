@@ -22,7 +22,7 @@ export async function GET() {
       service: 'gatezero',
       embed: '/gate',
       engine: 'gatezero-2.1',
-      product: 'BridgeControl Solo',
+      product: 'GateZero',
       proxy: '/api/proxy/{provider}/...',
       kill: '/api/v1/kill',
       routes: {

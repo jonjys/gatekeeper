@@ -93,8 +93,8 @@ Header: x-gz-key: gz_live_…`}</pre>
           </p>
           <p className="text-xs text-zinc-500">
             Code:{' '}
-            <a className="text-emerald-400 hover:underline" href="https://github.com/jonjys/gatekeeper">
-              github.com/jonjys/gatekeeper
+            <a className="text-emerald-400 hover:underline" href="https://github.com/jonjys/gatezero">
+              github.com/jonjys/gatezero
             </a>
           </p>
         </section>

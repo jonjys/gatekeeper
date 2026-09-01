@@ -8,7 +8,7 @@ export async function GET(
   return NextResponse.json(
     {
       error: 'Use Service Worker proxy at /api/gate/[provider]',
-      message: 'Keys never leave the machine. Ensure SW is registered (HTTPS or localhost).',
+      message: 'Use /api/proxy/{provider}/… with x-gz-key. Server vault decrypts for the hop.',
       provider: params.provider,
       path: (params.path || []).join('/')
     },

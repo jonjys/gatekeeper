@@ -1,7 +1,12 @@
 {
-  "name": "gatekeeper",
+  "name": "gatezero",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://getgatezero.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jonjys/gatezero.git"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

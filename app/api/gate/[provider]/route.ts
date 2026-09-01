@@ -8,7 +8,7 @@ export async function GET(
   return NextResponse.json(
     {
       error: 'Use Service Worker proxy at /api/gate/[provider]',
-      message: 'Keys never leave the machine. Reload so SW controls this origin.',
+      message: 'Use /api/proxy/{provider}/… with x-gz-key. Server vault decrypts for the hop.',
       provider: params.provider
     },
     { status: 503 }
