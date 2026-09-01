@@ -157,7 +157,7 @@ export default function PricingPage() {
             Pay us only when we save you money.
           </h1>
           <p className="text-zinc-400 max-w-xl mx-auto">
-            Seat fees unlock the portal. Success fee is 20% of verified savings. Zero if we save nothing.
+            Seat $0 / $29 / $299. Success fee only if we actually cut the bill.
           </p>
           <p className="text-sm font-mono text-emerald-400/90 pt-1">
             Proxied {proxied.toLocaleString()} hops on this booth · live ledger

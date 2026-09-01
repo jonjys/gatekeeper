@@ -23,11 +23,11 @@ export default async function Landing() {
           <p className="badge">{live ? 'live ledger' : 'API spend router'}</p>
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight leading-[1.12]">
             Toll booth for API traffic.
-            <span className="block text-emerald-400 mt-2">We take 20% of what we save.</span>
+            <span className="block text-emerald-400 mt-2">Ask gpt-4o. Pay for mini.</span>
           </h1>
           <p className="text-zinc-400 text-lg max-w-xl leading-relaxed">
-            Point one base URL at GateZero. Every request is identified, budget-checked,
-            routed cheaper when you allow it, measured, and billed. No savings → no fee.
+            One base URL. Cheaper route when you allow it. Kill when spend runs.
+            No save → no fee.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link
@@ -89,12 +89,19 @@ Header: x-gz-key: gz_live_…`}</pre>
           <p className="text-sm text-zinc-400 leading-relaxed">
             The money path decrypts AES-256-GCM credentials in memory for the upstream hop.
             That is required for a real proxy. We do not pretend the server path is keyless.
+            Use a restricted OpenAI key with a spend cap — not your master secret.
+          </p>
+          <p className="text-xs text-zinc-500">
+            Code:{' '}
+            <a className="text-emerald-400 hover:underline" href="https://github.com/jonjys/gatekeeper">
+              github.com/jonjys/gatekeeper
+            </a>
           </p>
         </section>
       </div>
 
       <footer className="border-t border-zinc-800/80 px-5 py-5 text-center text-xs text-zinc-500">
-        GateZero · 20% of verified savings · zero if we save nothing
+        GateZero · no save → no fee · getgatezero.com
       </footer>
     </main>
   );

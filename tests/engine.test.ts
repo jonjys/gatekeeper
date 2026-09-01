@@ -194,6 +194,15 @@ describe('public stats', () => {
       },
       { provider: 'probe', action: 'probe', actual_usd: 0, baseline_usd: 0, savings_usd: 0, fee_usd: 0 },
       {
+        provider: 'sim',
+        action: 'spike',
+        actual_usd: 10000,
+        baseline_usd: 10000,
+        savings_usd: 0,
+        fee_usd: 0,
+        created_at: '2026-08-31T21:00:00Z'
+      },
+      {
         provider: 'openai',
         action: 'passthrough',
         actual_usd: 0.002,

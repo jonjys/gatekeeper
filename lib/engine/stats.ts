@@ -49,6 +49,9 @@ export function aggregateLedgerRows(
   let lastAt: string | null = null;
   for (const row of rows) {
     if (row.action === 'probe') continue;
+    if (row.action === 'spike') continue;
+    const provider = (row.provider || 'unknown').toLowerCase();
+    if (provider === 'sim') continue;
     requests += 1;
     const actual = Number(row.actual_usd) || 0;
     const baseline = Number(row.baseline_usd) || 0;
@@ -59,7 +62,6 @@ export function aggregateLedgerRows(
     savingsUsd += savings;
     feeUsd += fee;
     if (row.created_at && (!lastAt || row.created_at > lastAt)) lastAt = row.created_at;
-    const provider = (row.provider || 'unknown').toLowerCase();
     const cur = map.get(provider) || {
       provider,
       requests: 0,

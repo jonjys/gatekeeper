@@ -28,7 +28,7 @@ export default async function LiveTicker() {
           <p className="font-mono text-xl mt-1 text-emerald-400">{usd(stats.savingsUsd)}</p>
         </div>
         <div>
-          <p className="text-[10px] uppercase tracking-wider text-zinc-500">Take 20%</p>
+          <p className="text-[10px] uppercase tracking-wider text-zinc-500">Take</p>
           <p className="font-mono text-xl mt-1">{usd(stats.feeUsd)}</p>
         </div>
       </div>

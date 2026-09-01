@@ -204,7 +204,7 @@ export default function KillSwitchPro({
         </svg>
         {rows.length < 2 && (
           <div className="absolute inset-0 flex items-center justify-center text-[10px] text-zinc-600 font-mono px-2 text-center">
-            Spike or Prove 20% to seed graph
+            Spike to arm kill · cheaper route to seed graph
           </div>
         )}
       </div>

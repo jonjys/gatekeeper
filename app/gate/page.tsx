@@ -35,10 +35,10 @@ export default async function GateZeroGatePage() {
       <div className="max-w-3xl mx-auto w-full px-5 py-14 space-y-10">
         <div className="space-y-3">
           <p className="badge">gatezero index</p>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">We see the prices. We take 20% of the cut.</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Live hops. Real costs.</h1>
           <p className="text-zinc-400 max-w-xl leading-relaxed">
-            Anonymized aggregates from proxied hops. No bodies, no keys — cost, savings, and fee
-            only. This is the data moat, not a mock table.
+            Anonymized aggregates from proxied hops. No bodies, no keys — cost and savings
+            only. Simulated spikes are excluded.
           </p>
         </div>
 
@@ -84,7 +84,7 @@ export default async function GateZeroGatePage() {
         </div>
 
         <p className="text-xs text-zinc-500">
-          Fee is 20% of verified savings. Zero savings → zero take. Last hop{' '}
+          No save → no fee. Last hop{' '}
           {stats.lastAt ? new Date(stats.lastAt).toISOString() : '—'}.
         </p>
 

@@ -1,7 +1,7 @@
 {
   "name": "GateZero",
   "short_name": "GateZero",
-  "description": "Zero-trust local-first API gateway. Keys never leave your machine.",
+  "description": "Toll booth for API traffic. Ask gpt-4o, pay for mini. No save → no fee.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0A0A0A",

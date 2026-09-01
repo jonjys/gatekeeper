@@ -5,7 +5,7 @@ import { RegisterSW } from './register-sw';
 export const metadata: Metadata = {
   title: 'GateZero — API spend router',
   description:
-    'Toll booth for API traffic. Policy, cheaper routing, ledger. 20% of verified savings — zero if we save nothing.',
+    'Toll booth for API traffic. Ask gpt-4o, pay for mini. Kill runaway spend. No save → no fee.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

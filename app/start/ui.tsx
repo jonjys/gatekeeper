@@ -153,7 +153,7 @@ export default function StartUi() {
           reply: res.ok ? `${n} models through the booth` : text.slice(0, 240),
           ledger: res.headers.get('x-gz-ledger') || 'n/a'
         });
-        setStatus(res.ok ? 'Proxy live.' : `Ping failed ${res.status}`);
+        setStatus(res.ok ? 'Proxy live.' : text.includes('missing_provider_credential') ? 'Vault a restricted OpenAI key below first.' : text.includes('KILL') ? 'Kill is armed. Tap Disarm, then hop.' : `Ping failed ${res.status}`);
       } else {
         const model = kind === 'save' ? 'gpt-4o' : 'gpt-4o-mini';
         const content =
@@ -192,7 +192,11 @@ export default function StartUi() {
             ? kind === 'save'
               ? `Routed ${res.headers.get('x-gz-requested-model')} → ${res.headers.get('x-gz-routed-model')}`
               : 'Chat live.'
-            : `Upstream ${res.status}`
+            : text.includes('missing_provider_credential')
+              ? 'Vault a restricted OpenAI key below first.'
+              : text.includes('KILL')
+                ? 'Kill is armed. Tap Disarm, then hop.'
+                : `Upstream ${res.status}`
         );
       }
       await loadLedger(token);
@@ -230,6 +234,13 @@ export default function StartUi() {
 
   const totals = ledger?.totals;
   const killed = Boolean(ledger?.killed);
+  const liveRows = (ledger?.rows || []).filter((r) => r.provider !== 'sim' && r.action !== 'spike');
+  const cardTotals = {
+    requests: liveRows.length,
+    actual: liveRows.reduce((s, r) => s + Number(r.actual_usd || 0), 0),
+    savings: liveRows.reduce((s, r) => s + Number(r.savings_usd || 0), 0),
+    fee: liveRows.reduce((s, r) => s + Number(r.fee_usd || 0), 0)
+  };
 
   return (
     <main className="min-h-screen max-w-xl mx-auto px-5 py-10 space-y-6">
@@ -241,16 +252,16 @@ export default function StartUi() {
       </div>
       <h1 className="text-3xl font-bold tracking-tight">The booth.</h1>
       <p className="text-sm text-zinc-400 leading-relaxed">
-        Vault a key, prove the 20% take, kill if it runs. Built to work from a phone.
+        Vault a restricted key. Ask gpt-4o — we send mini. Kill if it runs. No save → no fee.
       </p>
 
-      {totals && (
+      {token && (
         <section className="grid grid-cols-4 gap-2 text-center">
           {[
-            ['req', totals.requests],
-            ['spend', `$${Number(totals.actual).toFixed(3)}`],
-            ['saved', `$${Number(totals.savings).toFixed(3)}`],
-            ['take', `$${Number(totals.fee).toFixed(3)}`]
+            ['req', cardTotals.requests],
+            ['spend', `$${cardTotals.actual.toFixed(4)}`],
+            ['saved', `$${cardTotals.savings.toFixed(4)}`],
+            ['take', `$${cardTotals.fee.toFixed(4)}`]
           ].map(([k, v]) => (
             <div key={String(k)} className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-3">
               <p className="text-[10px] uppercase tracking-wider text-zinc-500">{k}</p>
@@ -260,50 +271,16 @@ export default function StartUi() {
         </section>
       )}
 
-      <section className="card space-y-3">
-        <h2 className="font-semibold">Prove the take-rate</h2>
-        <p className="text-sm text-zinc-500">
-          Asks for gpt-4o. Engine aliases to gpt-4o-mini. Fee is 20% of the verified delta.
+      {status && (
+        <p className="text-sm rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-emerald-300">
+          {status}
         </p>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <button
-            type="button"
-            disabled={!token || busy}
-            onClick={() => runHop('save')}
-            className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-black disabled:opacity-40 min-h-11"
-          >
-            Prove 20%
-          </button>
-          <button
-            type="button"
-            disabled={!token || busy}
-            onClick={() => runHop('chat')}
-            className="rounded-xl border border-zinc-600 px-4 py-3 text-sm disabled:opacity-40 min-h-11"
-          >
-            Send hi
-          </button>
-          <button
-            type="button"
-            disabled={!token || busy}
-            onClick={() => runHop('models')}
-            className="rounded-xl border border-zinc-600 px-4 py-3 text-sm disabled:opacity-40 min-h-11"
-          >
-            Ping models
-          </button>
-        </div>
-        {hop && (
-          <div className="rounded-xl bg-black/50 p-4 space-y-2 text-sm">
-            <p className="font-mono text-emerald-300">
-              {hop.requested} → {hop.routed} · {hop.action}
-            </p>
-            <p className="text-zinc-400">{hop.reply}</p>
-            <p className="font-mono text-xs text-zinc-500">
-              baseline ${hop.baseline} · actual ${hop.actual} · saved ${hop.savings} · take ${hop.fee} ·
-              ledger {hop.ledger}
-            </p>
-          </div>
-        )}
-      </section>
+      )}
+      {killed && (
+        <p className="text-sm rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-red-300">
+          Kill is armed. Disarm below before Prove / Ping, or hops stay blocked.
+        </p>
+      )}
 
       <section className="card space-y-3">
         <h2 className="font-semibold">1. Workspace</h2>
@@ -328,7 +305,10 @@ export default function StartUi() {
       </section>
 
       <section className="card space-y-3">
-        <h2 className="font-semibold">2. Vault provider key</h2>
+        <h2 className="font-semibold">2. Vault a restricted key</h2>
+        <p className="text-xs text-zinc-500">
+          OpenAI → API keys → new key with a $5 cap. Not your master key. Encrypted AES-256-GCM. Burn anytime.
+        </p>
         <select
           value={provider}
           onChange={(e) => setProvider(e.target.value)}
@@ -341,7 +321,7 @@ export default function StartUi() {
           type="password"
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
-          placeholder="sk-… stored AES-GCM at rest"
+          placeholder="sk-… restricted key"
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="none"
@@ -359,13 +339,58 @@ export default function StartUi() {
       </section>
 
       <section className="card space-y-3">
+        <h2 className="font-semibold">3. Prove cheaper route</h2>
+        <p className="text-sm text-zinc-500">
+          Asks for gpt-4o. Engine sends gpt-4o-mini. No save → no fee.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button
+            type="button"
+            disabled={!token || busy}
+            onClick={() => runHop('save')}
+            className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-black disabled:opacity-40 min-h-11"
+          >
+            Prove cheaper route
+          </button>
+          <button
+            type="button"
+            disabled={!token || busy}
+            onClick={() => runHop('chat')}
+            className="rounded-xl border border-zinc-600 px-4 py-3 text-sm disabled:opacity-40 min-h-11"
+          >
+            Send hi
+          </button>
+          <button
+            type="button"
+            disabled={!token || busy}
+            onClick={() => runHop('models')}
+            className="rounded-xl border border-zinc-600 px-4 py-3 text-sm disabled:opacity-40 min-h-11"
+          >
+            Ping models
+          </button>
+        </div>
+        {hop && (
+          <div className="rounded-xl bg-black/50 p-4 space-y-2 text-sm">
+            <p className="font-mono text-emerald-300">
+              {hop.requested} → {hop.routed} · {hop.action}
+            </p>
+            <p className="text-zinc-400 break-words">{hop.reply}</p>
+            <p className="font-mono text-xs text-zinc-500">
+              baseline ${hop.baseline} · actual ${hop.actual} · saved ${hop.savings} · take ${hop.fee} ·
+              ledger {hop.ledger}
+            </p>
+          </div>
+        )}
+      </section>
+
+      <section className="card space-y-3">
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-semibold">Cheaper alias</h2>
           <button type="button" onClick={toggleCheap} className="text-xs text-zinc-400 hover:text-emerald-400 min-h-11">
             {ledger?.preferCheap !== false ? 'ON' : 'OFF'}
           </button>
         </div>
-        <p className="text-sm text-zinc-500">gpt-4o → gpt-4o-mini when on. Fee is 20% of the verified delta.</p>
+        <p className="text-sm text-zinc-500">gpt-4o → gpt-4o-mini when on.</p>
       </section>
 
       <KillSwitchPro
@@ -401,8 +426,6 @@ export default function StartUi() {
         <h2 className="font-semibold">Endpoint</h2>
         <pre className="text-xs bg-black/50 rounded-xl p-4 overflow-x-auto text-emerald-300/90">{snippet}</pre>
       </section>
-
-      {status && <p className="text-sm text-emerald-400">{status}</p>}
     </main>
   );
 }

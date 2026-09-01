@@ -3,13 +3,13 @@
 Live: [https://getgatezero.com](https://getgatezero.com)
 
 API spend router. Point traffic at `/api/proxy/{provider}/...`.
-Policy, cheaper-model routing, ledger. **20% of verified savings** — zero if we save nothing.
+Policy, cheaper-model routing, ledger. **No save → no fee.**
 
 ```
 REQUEST → POLICY → COST → ROUTE → UPSTREAM → LEDGER → STRIPE
 ```
 
-Open [`/start`](https://getgatezero.com/start) → vault a key → **Prove 20%**.
+Open [`/start`](https://getgatezero.com/start) → vault a restricted key → **Prove cheaper route**.
 Index: [`/gate`](https://getgatezero.com/gate) · ticker: [`/live`](https://getgatezero.com/live)
 
 ## Honest secrets
