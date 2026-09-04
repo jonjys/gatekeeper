@@ -15,8 +15,6 @@ import { fetchUsageEvents } from '@/lib/supabase';
 type LocalKey = { name: string; provider: string; created_at: number };
 type Tab = 'usage' | 'audit';
 
-const CUSTOMER_KEY = 'gatezero-stripe-customer';
-
 export default function DashboardPage() {
   const [keys, setKeys] = useState<LocalKey[]>([]);
   const [chartData, setChartData] = useState<
@@ -77,12 +75,16 @@ export default function DashboardPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/checkout?session_id=${encodeURIComponent(sessionId)}`);
+        const token = localStorage.getItem('gz_token') || '';
+        const res = await fetch(`/api/checkout?session_id=${encodeURIComponent(sessionId)}`, {
+          headers: token ? { 'x-gz-key': token } : undefined
+        });
         const data = await res.json();
         if (cancelled) return;
         if (data.customerId && String(data.customerId).startsWith('cus_')) {
-          localStorage.setItem(CUSTOMER_KEY, data.customerId);
-          setBanner(`Plan active${data.plan ? ` (${data.plan})` : ''}. Billing portal is ready.`);
+          setBanner(
+            `Plan active${data.plan ? ` (${data.plan})` : ''}.${data.bound ? ' Stripe linked to this workspace.' : ' Billing portal is ready.'}`
+          );
         } else {
           setBanner('Checkout received — customer id pending. Try Billing in a moment.');
         }
@@ -145,6 +147,9 @@ export default function DashboardPage() {
           Gate<span className="text-emerald-400">Zero</span>
         </Link>
         <div className="flex items-center gap-3 text-sm">
+          <Link href="/start" className="text-zinc-400 hover:text-emerald-400">
+            Start
+          </Link>
           <Link href="/pricing" className="text-zinc-400 hover:text-emerald-400">
             Pricing
           </Link>
@@ -156,7 +161,7 @@ export default function DashboardPage() {
           >
             {billingBusy ? 'Opening…' : 'Billing'}
           </button>
-          <span className="text-zinc-500">Dashboard</span>
+          <span className="text-zinc-500">Demos</span>
         </div>
       </header>
 

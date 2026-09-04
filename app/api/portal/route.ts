@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { siteUrl } from '@/lib/billing';
+import { jsonError } from '@/lib/engine/errors';
 import { requireWorkspace } from '@/lib/engine/auth';
 
 /**
@@ -9,17 +10,16 @@ import { requireWorkspace } from '@/lib/engine/auth';
  */
 export async function POST(req: NextRequest) {
   if (!stripe) {
-    return NextResponse.json({ error: 'STRIPE_SECRET_KEY not configured' }, { status: 503 });
+    return jsonError('stripe_unconfigured', 503, { hint: 'Set STRIPE_SECRET_KEY' });
   }
 
   const auth = await requireWorkspace(req);
   if ('error' in auth) return auth.error;
   const customerId = auth.ws.stripe_customer_id;
   if (!customerId || !customerId.startsWith('cus_')) {
-    return NextResponse.json(
-      { error: 'no_customer', hint: 'Upgrade on /pricing first. Billing opens after Checkout.' },
-      { status: 400 }
-    );
+    return jsonError('no_customer', 400, {
+      hint: 'Upgrade on /pricing first. Billing opens after Checkout.'
+    });
   }
 
   const origin = siteUrl(req.headers.get('origin'));
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url: session.url });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: 'portal failed', detail: message }, { status: 502 });
+    return jsonError('portal_failed', 502, { detail: message });
   }
 }
 

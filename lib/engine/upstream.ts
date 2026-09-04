@@ -29,6 +29,7 @@ export const FORWARD = new Set([
   'content-type',
   'accept',
   'anthropic-version',
+  'anthropic-beta',
   'openai-beta',
   'openai-organization'
 ]);

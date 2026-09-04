@@ -30,12 +30,13 @@ export default function OnboardVercelPage() {
 
       const gateway =
         typeof window !== 'undefined' ? window.location.origin : 'https://getgatezero.com';
-      const env = `# GateZero migration — ${new Date().toISOString()}
-# Secrets stay in GateZero local vault. Apps only need the gateway URL.
-GATEWAY_URL=${gateway}/api/gate
-OPENAI_BASE_URL=${gateway}/api/gate/openai
-# Remove raw keys from this file after vault import:
-# OPENAI_API_KEY=sk-...   ← delete; import into GateZero instead
+      const env = `# GateZero spend router — ${new Date().toISOString()}
+# Demo helper only. The money path is /api/proxy with x-gz-key.
+# Create a workspace on /start, vault a restricted key, then:
+OPENAI_BASE_URL=${gateway}/api/proxy/openai
+ANTHROPIC_BASE_URL=${gateway}/api/proxy/anthropic
+# Header on every request: x-gz-key: gz_live_…
+# Do not use /api/gate — leftover Service Worker demo.
 `;
       const gitDiff = `diff --git a/.env b/.env
 --- a/.env
@@ -43,9 +44,9 @@ OPENAI_BASE_URL=${gateway}/api/gate/openai
 @@ -1,4 +1,5 @@
 -OPENAI_API_KEY=sk-proj-REDACTED
 -ANTHROPIC_API_KEY=sk-ant-REDACTED
-+# Migrated to GateZero vault — ${project}
-+GATEWAY_URL=${gateway}/api/gate
-+OPENAI_BASE_URL=${gateway}/api/gate/openai
++# Migrated to GateZero spend router — ${project}
++OPENAI_BASE_URL=${gateway}/api/proxy/openai
++# x-gz-key: gz_live_…  (from /start)
 `;
       setEnvOut(env);
       setDiff(gitDiff);
@@ -72,12 +73,14 @@ OPENAI_BASE_URL=${gateway}/api/gate/openai
       </header>
       <div className="max-w-2xl mx-auto w-full px-5 py-12 space-y-8">
         <div className="space-y-2">
-          <p className="badge">onboard · vercel</p>
-          <h1 className="text-2xl sm:text-3xl font-bold">Migrate off scattered .env files</h1>
+          <p className="badge">demo · not the spend router</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Generate a proxy .env</h1>
           <p className="text-zinc-400 text-sm">
-            Token stays in the browser. Output: one{' '}
-            <code className="text-emerald-400">GATEWAY_URL</code> line + a git diff. Import real
-            keys into the local vault on the home page.
+            Dry-run helper. Real onboarding is{' '}
+            <Link href="/start" className="text-emerald-400 hover:underline">
+              /start
+            </Link>
+            : workspace → vault key → hop URL. Token stays in the browser for this generator.
           </p>
         </div>
 
@@ -126,8 +129,8 @@ OPENAI_BASE_URL=${gateway}/api/gate/openai
             <pre className="rounded-xl bg-black/50 border border-zinc-800 p-4 text-xs text-zinc-300 overflow-x-auto whitespace-pre-wrap">
               {diff}
             </pre>
-            <Link href="/" className="inline-block text-sm text-emerald-400 hover:underline">
-              → Import real keys into local vault
+            <Link href="/start" className="inline-block text-sm text-emerald-400 hover:underline">
+              → Open the booth and vault a restricted key
             </Link>
           </div>
         )}

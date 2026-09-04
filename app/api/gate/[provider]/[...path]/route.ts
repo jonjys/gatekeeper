@@ -1,19 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import { jsonError } from '@/lib/engine/errors';
 
-/** Catch-all fallback. SW owns the real path. Zero keys here. */
+/** Leftover demo path. The spend router is /api/proxy — not the Service Worker. */
 export async function GET(
   _req: NextRequest,
   { params }: { params: { provider: string; path: string[] } }
 ) {
-  return NextResponse.json(
-    {
-      error: 'Use Service Worker proxy at /api/gate/[provider]',
-      message: 'Use /api/proxy/{provider}/… with x-gz-key. Server vault decrypts for the hop.',
-      provider: params.provider,
-      path: (params.path || []).join('/')
-    },
-    { status: 503 }
-  );
+  return jsonError('demo_path', 503, {
+    message: `Use /api/proxy/${params.provider}/${(params.path || []).join('/') || '…'} with x-gz-key. /api/gate is a leftover Service Worker demo, not the money path.`
+  });
 }
 
 export async function POST(

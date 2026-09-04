@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 type Row = {
   actual_usd: number;
@@ -13,34 +13,46 @@ type Props = {
   token: string;
   killed: boolean;
   budgetUsd: number;
+  dailyBudgetUsd?: number;
   spendUsd: number;
+  dailySpendUsd?: number;
+  failMode?: string;
   rows: Row[];
   busy?: boolean;
   onChanged: () => Promise<void> | void;
   onStatus: (msg: string) => void;
 };
 
-const SLACK_KEY = 'gz_slack_webhook';
-
 export default function KillSwitchPro({
   token,
   killed,
   budgetUsd,
+  dailyBudgetUsd = 10,
   spendUsd,
+  dailySpendUsd = 0,
+  failMode = 'closed',
   rows,
   busy,
   onChanged,
   onStatus
 }: Props) {
   const [budgetInput, setBudgetInput] = useState(String(budgetUsd || 50));
-  const [slack, setSlack] = useState(() =>
-    typeof window !== 'undefined' ? localStorage.getItem(SLACK_KEY) || '' : ''
-  );
+  const [dailyInput, setDailyInput] = useState(String(dailyBudgetUsd || 10));
   const [toast, setToast] = useState<string | null>(null);
   const [localBusy, setLocalBusy] = useState(false);
   const working = busy || localBusy;
+  const closed = failMode !== 'open';
+
+  useEffect(() => {
+    setBudgetInput(String(budgetUsd || 50));
+  }, [budgetUsd]);
+
+  useEffect(() => {
+    setDailyInput(String(dailyBudgetUsd || 10));
+  }, [dailyBudgetUsd]);
 
   const pct = Math.min(100, (spendUsd / Math.max(0.0001, budgetUsd)) * 100);
+  const dailyPct = Math.min(100, (dailySpendUsd / Math.max(0.0001, dailyBudgetUsd)) * 100);
 
   const chart = useMemo(() => {
     const w = 320;
@@ -72,17 +84,35 @@ export default function KillSwitchPro({
     return { path: `M ${pts.join(' L ')}`, zoneY, w, h };
   }, [rows, budgetUsd]);
 
-  async function saveBudget() {
-    const d = Number(budgetInput);
-    if (!token || Number.isNaN(d) || d < 0) return;
+  async function saveBudgets() {
+    const monthly = Number(budgetInput);
+    const daily = Number(dailyInput);
+    if (!token || Number.isNaN(monthly) || monthly < 0 || Number.isNaN(daily) || daily < 0) return;
     setLocalBusy(true);
     try {
       await fetch('/api/v1/workspace', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json', 'x-gz-key': token },
-        body: JSON.stringify({ monthlyBudgetUsd: d })
+        body: JSON.stringify({ monthlyBudgetUsd: monthly, dailyBudgetUsd: daily })
       });
-      onStatus(`Budget set to $${d}`);
+      onStatus(`Budget $${monthly}/mo · $${daily}/day`);
+      await onChanged();
+    } finally {
+      setLocalBusy(false);
+    }
+  }
+
+  async function toggleFailMode() {
+    if (!token) return;
+    const next = closed ? 'open' : 'closed';
+    setLocalBusy(true);
+    try {
+      await fetch('/api/v1/workspace', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', 'x-gz-key': token },
+        body: JSON.stringify({ failMode: next })
+      });
+      onStatus(next === 'open' ? 'Fail-open — hops continue past cap' : 'Fail-closed — 402 on cap');
       await onChanged();
     } finally {
       setLocalBusy(false);
@@ -99,7 +129,7 @@ export default function KillSwitchPro({
         headers: { 'x-gz-key': token }
       });
       const data = await res.json();
-      setToast(data.toast || 'Kill armed');
+      setToast(data.toast || 'Kill armed (demo)');
       onStatus(data.toast || 'spike');
       await onChanged();
     } finally {
@@ -122,11 +152,6 @@ export default function KillSwitchPro({
     } finally {
       setLocalBusy(false);
     }
-  }
-
-  function saveSlack() {
-    localStorage.setItem(SLACK_KEY, slack);
-    onStatus(slack ? 'Slack webhook saved on this device' : 'Slack webhook cleared');
   }
 
   return (
@@ -152,14 +177,15 @@ export default function KillSwitchPro({
 
       <div className="text-xl sm:text-3xl font-bold tabular-nums font-mono break-all leading-tight">
         ${spendUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        <span className="text-sm font-normal text-zinc-500"> / ${budgetUsd.toFixed(0)}</span>
+        <span className="text-sm font-normal text-zinc-500"> / ${budgetUsd.toFixed(0)} mo</span>
       </div>
       <p className="text-[11px] text-zinc-500">
-        {pct.toFixed(0)}% of budget{killed ? ' · KILLED' : pct >= 80 ? ' · RED ZONE' : ''}
+        {pct.toFixed(0)}% of monthly{killed ? ' · KILLED' : pct >= 80 ? ' · RED ZONE' : ''} · today $
+        {dailySpendUsd.toFixed(4)} / ${Number(dailyBudgetUsd).toFixed(0)} ({dailyPct.toFixed(0)}%)
       </p>
 
       <div className="flex flex-wrap gap-2 items-center">
-        <span className="text-xs text-zinc-500">$</span>
+        <span className="text-xs text-zinc-500">mo $</span>
         <input
           value={budgetInput}
           onChange={(e) => setBudgetInput(e.target.value)}
@@ -168,12 +194,23 @@ export default function KillSwitchPro({
           autoCorrect="off"
           spellCheck={false}
           enterKeyHint="done"
-          className="min-h-11 w-24 rounded-lg bg-black/40 border border-zinc-700 px-2 py-2 text-sm font-mono"
+          className="min-h-11 w-20 rounded-lg bg-black/40 border border-zinc-700 px-2 py-2 text-sm font-mono"
+        />
+        <span className="text-xs text-zinc-500">day $</span>
+        <input
+          value={dailyInput}
+          onChange={(e) => setDailyInput(e.target.value)}
+          inputMode="decimal"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          enterKeyHint="done"
+          className="min-h-11 w-20 rounded-lg bg-black/40 border border-zinc-700 px-2 py-2 text-sm font-mono"
         />
         <button
           type="button"
           disabled={!token || working}
-          onClick={saveBudget}
+          onClick={() => void saveBudgets()}
           className="min-h-11 text-xs px-3 py-2 rounded-lg border border-emerald-500/40 text-emerald-400 disabled:opacity-40"
         >
           Set
@@ -183,11 +220,24 @@ export default function KillSwitchPro({
       <button
         type="button"
         disabled={!token || working}
-        onClick={spike}
+        onClick={() => void toggleFailMode()}
+        className="text-xs text-zinc-400 hover:text-emerald-400 min-h-11 text-left"
+      >
+        Fail-{closed ? 'closed' : 'open'} · tap to {closed ? 'allow over-cap hops' : 'block on cap'}
+      </button>
+
+      <button
+        type="button"
+        disabled={!token || working}
+        onClick={() => void spike()}
         className="w-full min-h-12 text-sm px-3 py-3 rounded-xl border border-red-500 bg-red-500/15 text-red-400 font-semibold disabled:opacity-40"
       >
-        Simulate $10k spike
+        Arm kill (demo)
       </button>
+      <p className="text-[11px] text-zinc-500">
+        Demo arms the switch and writes a sim row. It is not real spend and does not trip the budget
+        window. Real 402 happens when monthly spend + next hop exceeds the cap.
+      </p>
 
       {toast && (
         <p className="text-sm text-red-300 border border-red-500/30 bg-red-500/10 rounded-lg px-3 py-2">{toast}</p>
@@ -212,7 +262,7 @@ export default function KillSwitchPro({
         </svg>
         {rows.length < 2 && (
           <div className="absolute inset-0 flex items-center justify-center text-[10px] text-zinc-600 font-mono px-2 text-center">
-            Spike to arm kill · cheaper route to seed graph
+            Prove cheaper route to seed graph · demo kill to arm
           </div>
         )}
       </div>
@@ -224,32 +274,6 @@ export default function KillSwitchPro({
           }`}
           style={{ width: `${pct}%` }}
         />
-      </div>
-
-      <div className="border-t border-zinc-800 pt-3 space-y-2">
-        <label className="text-[11px] text-zinc-500 block">Slack webhook (this device only)</label>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="text"
-            inputMode="url"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="none"
-            spellCheck={false}
-            enterKeyHint="done"
-            placeholder="https://hooks.slack.com/services/…"
-            value={slack}
-            onChange={(e) => setSlack(e.target.value)}
-            className="flex-1 min-h-11 rounded-lg bg-black/40 border border-zinc-700 px-3 py-2 text-xs font-mono"
-          />
-          <button
-            type="button"
-            onClick={saveSlack}
-            className="min-h-11 text-xs px-3 py-2 rounded-lg border border-zinc-700 text-zinc-400"
-          >
-            Save
-          </button>
-        </div>
       </div>
     </section>
   );

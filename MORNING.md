@@ -2,6 +2,7 @@
 
 Prod: https://getgatezero.com
 Proxy: `https://getgatezero.com/api/proxy/openai/v1/chat/completions`
+Anthropic: `https://getgatezero.com/api/proxy/anthropic/v1/messages`
 Stripe webhook: `https://getgatezero.com/api/webhooks/stripe`
 
 SQL 003+004 is on Gatezero-prod. Vault key is in Vercel.
@@ -16,3 +17,5 @@ Land these if not already applied:
 
 1. `supabase/migrations/005_ledger_fix.sql` — unique index that ignores `auto_*` / `retry_*` keys.
 2. `supabase/migrations/006_spend_windows.sql` — `workspace_spend_windows()` for fail-closed budgets + `idempotency_cache` so serverless retries do not double-hop.
+
+No additional migrations in this round. Stripe webhook must include `customer.subscription.updated` (and `created`) so portal plan changes write `savings_fee_bps`.

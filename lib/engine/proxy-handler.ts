@@ -30,6 +30,8 @@ import {
   type Workspace
 } from '@/lib/engine/workspace';
 import { recordSavingsFee } from '@/lib/stripe';
+import { hasEntitlement } from '@/lib/billing';
+import { jsonError } from '@/lib/engine/errors';
 import type { CostResult } from '@/lib/engine/cost';
 
 function extractBearerSecret(req: NextRequest): string {
@@ -117,22 +119,20 @@ export async function handleProxy(
   const path = (pathParts || []).join('/');
   const base = UPSTREAM[provider];
   if (!base) {
-    return NextResponse.json({ error: 'unknown_provider' }, { status: 400 });
+    return jsonError('unknown_provider', 400, {
+      hint: 'Use openai or anthropic. Stripe API is passthrough only — no cheaper-model table.'
+    });
   }
 
   const gz = readGzToken(req);
   if (!isGzToken(gz)) {
-    return NextResponse.json(
-      {
-        error: 'missing_workspace_token',
-        hint: 'Send x-gz-key: gz_live_… (create via POST /api/v1/workspace)'
-      },
-      { status: 401 }
-    );
+    return jsonError('missing_workspace_token', 401, {
+      hint: 'Send x-gz-key: gz_live_… (create via POST /api/v1/workspace)'
+    });
   }
 
   if (!rateLimit(gz, 180, 60_000)) {
-    const res = NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+    const res = jsonError('rate_limited', 429);
     res.headers.set('retry-after', '60');
     return res;
   }
@@ -151,13 +151,9 @@ export async function handleProxy(
 
   const ws = await loadWorkspaceByToken(gz);
   if (!ws) {
-    return NextResponse.json(
-      {
-        error: 'unknown_workspace',
-        hint: 'Run supabase/migrations/003_engine.sql then POST /api/v1/workspace'
-      },
-      { status: 401 }
-    );
+    return jsonError('unknown_workspace', 401, {
+      hint: 'Run supabase/migrations/003_engine.sql then POST /api/v1/workspace'
+    });
   }
 
   if (idem) {
@@ -173,12 +169,12 @@ export async function handleProxy(
 
   const contentLength = Number(req.headers.get('content-length') || 0);
   if (contentLength > MAX_PROXY_BODY_BYTES) {
-    return NextResponse.json({ error: 'payload_too_large' }, { status: 413 });
+    return jsonError('payload_too_large', 413);
   }
 
   const rawBody = req.method === 'GET' || req.method === 'HEAD' ? '' : await req.text();
   if (rawBody.length > MAX_PROXY_BODY_BYTES) {
-    return NextResponse.json({ error: 'payload_too_large' }, { status: 413 });
+    return jsonError('payload_too_large', 413);
   }
 
   const isGet = req.method === 'GET' || req.method === 'HEAD';
@@ -276,17 +272,13 @@ export async function handleProxy(
       upstreamAuth = decryptSecret(cred);
     } catch (e) {
       slog('vault_decrypt', { level: 'error', detail: String(e) });
-      return NextResponse.json({ error: 'vault_decrypt_failed' }, { status: 500 });
+      return jsonError('vault_decrypt_failed', 500);
     }
   }
   if (!upstreamAuth) {
-    return NextResponse.json(
-      {
-        error: 'missing_provider_credential',
-        hint: 'POST /api/v1/credentials with { provider, secret } once'
-      },
-      { status: 401 }
-    );
+    return jsonError('missing_provider_credential', 401, {
+      hint: `POST /api/v1/credentials with { provider: "${provider}", secret } once`
+    });
   }
 
   const headers = new Headers();
@@ -307,13 +299,18 @@ export async function handleProxy(
   headers.set('content-type', req.headers.get('content-type') || 'application/json');
 
   const url = `${base}/${path}${req.nextUrl.search}`;
+  const priority = hasEntitlement(ws.plan, 'priority_proxy');
   let upstream: Response;
   try {
-    upstream = await fetchWithRetry(url, {
-      method: req.method,
-      headers,
-      body: req.method === 'GET' || req.method === 'HEAD' ? undefined : outboundBody
-    });
+    upstream = await fetchWithRetry(
+      url,
+      {
+        method: req.method,
+        headers,
+        body: req.method === 'GET' || req.method === 'HEAD' ? undefined : outboundBody
+      },
+      { retries: priority ? 5 : undefined, timeoutMs: priority ? 180_000 : undefined }
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'upstream_failed';
     slog('proxy.upstream_fail', { level: 'error', workspace: ws.id, provider, detail: msg });
@@ -332,10 +329,7 @@ export async function handleProxy(
       fee_usd: 0,
       status: 504
     });
-    return withLedgerHeaders(
-      NextResponse.json({ error: 'upstream_failed', detail: msg }, { status: 504 }),
-      wrote
-    );
+    return withLedgerHeaders(jsonError('upstream_failed', 504, { detail: msg }), wrote);
   }
 
   if (stream && upstream.body) {

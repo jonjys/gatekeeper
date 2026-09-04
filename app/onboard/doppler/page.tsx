@@ -22,16 +22,18 @@ export default function OnboardDopplerPage() {
       await new Promise((r) => setTimeout(r, 1000 + Math.random() * 900));
       const gateway =
         typeof window !== 'undefined' ? window.location.origin : 'https://getgatezero.com';
-      const env = `# GateZero ← Doppler ${config}
-GATEWAY_URL=${gateway}/api/gate
-# Secrets imported to on-device vault — not stored in Doppler sync target
+      const env = `# GateZero spend router ← Doppler ${config} (demo helper)
+OPENAI_BASE_URL=${gateway}/api/proxy/openai
+ANTHROPIC_BASE_URL=${gateway}/api/proxy/anthropic
+# Header: x-gz-key: gz_live_… from /start
+# /api/gate is not the money path
 `;
       const gitDiff = `diff --git a/.env.production b/.env.production
 --- a/.env.production
 +++ b/.env.production
 @@
 -# doppler secrets inject
-+GATEWAY_URL=${gateway}/api/gate
++OPENAI_BASE_URL=${gateway}/api/proxy/openai
 `;
       setEnvOut(env);
       setDiff(gitDiff);
@@ -60,10 +62,14 @@ GATEWAY_URL=${gateway}/api/gate
       </header>
       <div className="max-w-2xl mx-auto w-full px-5 py-12 space-y-8">
         <div className="space-y-2">
-          <p className="badge">onboard · doppler</p>
-          <h1 className="text-2xl sm:text-3xl font-bold">Doppler → GateZero gateway</h1>
+          <p className="badge">demo · not the spend router</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Doppler → GateZero proxy URL</h1>
           <p className="text-zinc-400 text-sm">
-            Stop syncing raw secrets into every runtime. One gateway URL. Keys in the browser vault.
+            Dry-run helper. Vault the real key on{' '}
+            <Link href="/start" className="text-emerald-400 hover:underline">
+              /start
+            </Link>
+            . Apps call /api/proxy with x-gz-key.
           </p>
         </div>
         <div className="card space-y-4">
