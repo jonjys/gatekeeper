@@ -9,6 +9,7 @@ import PasskeyGate from '@/components/PasskeyGate';
 import AuditPanel from '@/components/AuditPanel';
 import QueueTransparent from '@/components/QueueTransparent';
 import EnginePanel from '@/components/EnginePanel';
+import SiteFooter from '@/components/SiteFooter';
 import { listKeys, deleteKey } from '@/lib/crypto';
 import { fetchUsageEvents } from '@/lib/supabase';
 
@@ -150,6 +151,9 @@ export default function DashboardPage() {
           <Link href="/start" className="text-zinc-400 hover:text-emerald-400">
             Start
           </Link>
+          <Link href="/contact" className="text-zinc-400 hover:text-emerald-400">
+            Contact
+          </Link>
           <Link href="/pricing" className="text-zinc-400 hover:text-emerald-400">
             Pricing
           </Link>
@@ -274,6 +278,7 @@ export default function DashboardPage() {
           </details>
         )}
       </div>
+      <SiteFooter />
     </main>
   );
 }

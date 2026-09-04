@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { redactForLog } from './log';
 
 export type ApiErrorBody = {
   error: string;
@@ -15,6 +16,6 @@ export function jsonError(
   const body: ApiErrorBody = { error };
   if (extra?.message) body.message = extra.message;
   if (extra?.hint) body.hint = extra.hint;
-  if (extra?.detail) body.detail = extra.detail;
+  if (extra?.detail) body.detail = String(redactForLog(extra.detail));
   return NextResponse.json(body, { status });
 }

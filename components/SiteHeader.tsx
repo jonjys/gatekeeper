@@ -14,10 +14,11 @@ export default function SiteHeader({ current }: { current?: string }) {
       <Link href="/" className="font-semibold tracking-tight">
         Gate<span className="text-emerald-400">Zero</span>
       </Link>
-      <nav className="flex items-center gap-4">
+      <nav className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
         {item('/start', 'Start')}
         {item('/gate', 'Index')}
         {item('/pricing', 'Pricing')}
+        {item('/contact', 'Contact')}
       </nav>
     </header>
   );

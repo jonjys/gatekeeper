@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import SiteHeader from '@/components/SiteHeader';
+import SiteFooter from '@/components/SiteFooter';
 import { publicStats } from '@/lib/engine/stats';
 
 export const dynamic = 'force-dynamic';
@@ -114,6 +115,7 @@ Header: x-gz-key: gz_live_…`}</pre>
           </Link>
         </div>
       </div>
+      <SiteFooter />
     </main>
   );
 }
