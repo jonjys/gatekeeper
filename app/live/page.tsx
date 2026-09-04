@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import SiteFooter from '@/components/SiteFooter';
 import { publicStats } from '@/lib/engine/stats';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,9 @@ export default async function LiveTicker() {
       <Link href="/start" className="mt-14 text-sm text-zinc-500 hover:text-emerald-400">
         Open the booth →
       </Link>
+      <div className="mt-16 w-full">
+        <SiteFooter />
+      </div>
     </main>
   );
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import KillSwitchPro from '@/components/KillSwitchPro';
 import VacuumTrapPanel from '@/components/VacuumTrapPanel';
+import SiteFooter from '@/components/SiteFooter';
 import {
   cheapPassthroughModel,
   hopPath,
@@ -634,6 +635,7 @@ export default function StartUi() {
           </Link>
         </div>
       </section>
+      <SiteFooter />
     </main>
   );
 }

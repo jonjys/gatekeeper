@@ -1,8 +1,15 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import SiteHeader from '@/components/SiteHeader';
+import SiteFooter from '@/components/SiteFooter';
+import { COMPANY } from '@/lib/company';
 import { publicStats } from '@/lib/engine/stats';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  alternates: { canonical: '/' }
+};
 
 function usd(n: number) {
   if (n >= 1) return `$${n.toFixed(2)}`;
@@ -28,6 +35,12 @@ export default async function Landing() {
           <p className="text-zinc-400 text-lg max-w-xl leading-relaxed">
             One base URL. Cheaper route when you allow it. Kill when spend runs.
             No save → no fee.
+          </p>
+          <p className="text-xs text-zinc-500">
+            A product by{' '}
+            <a href={COMPANY.website} className="text-emerald-400 hover:underline">
+              Nytto Labs
+            </a>
           </p>
           <div className="flex flex-wrap gap-3">
             <Link
@@ -99,17 +112,15 @@ https://getgatezero.com/api/proxy/anthropic/v1/messages`}</pre>
             <a className="text-emerald-400 hover:underline" href="https://github.com/jonjys/gatezero">
               github.com/jonjys/gatezero
             </a>
+            {' · '}
+            <Link href="/privacy" className="text-emerald-400 hover:underline">
+              Privacy
+            </Link>
           </p>
         </section>
       </div>
 
-      <footer className="border-t border-zinc-800/80 px-5 py-5 text-center text-xs text-zinc-500">
-        GateZero · no save → no fee · getgatezero.com
-        {' · '}
-        <Link href="/dashboard" className="hover:text-emerald-400">
-          Demos
-        </Link>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }

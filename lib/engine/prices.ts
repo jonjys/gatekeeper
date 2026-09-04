@@ -1,6 +1,6 @@
 /**
  * Deterministic published list prices (USD). AI never invents these.
- * Source: vendor public pricing as of 2026-08 — operator can override via env JSON.
+ * Source and date are exported so any UI that shows prices can cite them.
  */
 export type PriceRow = {
   provider: string;
@@ -9,6 +9,10 @@ export type PriceRow = {
   outPerMTok: number;
   cheaperAlias?: string;
 };
+
+/** OpenAI and Anthropic public list prices. */
+export const PRICE_SOURCE = 'OpenAI and Anthropic public list prices';
+export const PRICE_AS_OF = '2026-08';
 
 export const PRICES: PriceRow[] = [
   { provider: 'openai', model: 'gpt-4o', inPerMTok: 2.5, outPerMTok: 10, cheaperAlias: 'gpt-4o-mini' },

@@ -3,9 +3,13 @@ import './globals.css';
 import { RegisterSW } from './register-sw';
 
 export const metadata: Metadata = {
-  title: 'GateZero — API spend router',
+  metadataBase: new URL('https://getgatezero.com'),
+  title: {
+    default: 'GateZero — API spend router',
+    template: '%s · GateZero'
+  },
   description:
-    'Toll booth for API traffic. Ask gpt-4o, pay for mini. Kill runaway spend. No save → no fee.',
+    'Toll booth for API traffic. Ask gpt-4o, pay for mini. Kill runaway spend. No save → no fee. A product by Nytto Labs.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

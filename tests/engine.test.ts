@@ -50,6 +50,23 @@ describe('cost engine', () => {
     expect(r.feeUsd).toBe(0);
   });
 
+  it('unknown models do not invent savings or a fee', () => {
+    const r = computeCost({
+      provider: 'openai',
+      requestedModel: 'not-a-priced-model',
+      routedModel: 'not-a-priced-model',
+      promptTokens: 50_000,
+      completionTokens: 10_000,
+      savingsFeeBps: 2000
+    });
+    expect(r.priceFound).toBe(false);
+    expect(r.baselineUsd).toBe(0);
+    expect(r.actualUsd).toBe(0);
+    expect(r.savingsUsd).toBe(0);
+    expect(r.feeUsd).toBe(0);
+    expect(findPrice('openai', 'not-a-priced-model')).toBeNull();
+  });
+
   it('15% enterprise bps', () => {
     expect(feeFromSavingsUsd(10, 1500)).toBe(1.5);
   });
@@ -87,6 +104,17 @@ describe('routing', () => {
     });
     expect(d.action).toBe('passthrough');
     expect(d.routedModel).toBe('gpt-4o');
+  });
+
+  it('unknown models passthrough with no cheaper alias', () => {
+    const d = decideRoute({
+      provider: 'openai',
+      requestedModel: 'gpt-not-in-table',
+      preferCheap: true,
+      killed: false
+    });
+    expect(d.action).toBe('passthrough');
+    expect(d.routedModel).toBe('gpt-not-in-table');
   });
 
   it('rewrites model field only', () => {

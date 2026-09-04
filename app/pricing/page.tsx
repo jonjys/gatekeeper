@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import SiteFooter from '@/components/SiteFooter';
 
 const TIERS = [
   {
@@ -147,9 +148,14 @@ export default function PricingPage() {
         <Link href="/" className="font-semibold">
           Gate<span className="text-emerald-400">Zero</span>
         </Link>
-        <Link href="/start" className="text-sm text-zinc-400 hover:text-emerald-400">
-          Start
-        </Link>
+        <nav className="flex items-center gap-4">
+          <Link href="/start" className="text-sm text-zinc-400 hover:text-emerald-400">
+            Start
+          </Link>
+          <Link href="/contact" className="text-sm text-zinc-400 hover:text-emerald-400">
+            Contact
+          </Link>
+        </nav>
       </header>
 
       <div className="flex-1 max-w-5xl mx-auto w-full px-5 py-14 space-y-14">
@@ -257,6 +263,7 @@ export default function PricingPage() {
           Cancel anytime via Stripe Customer Portal. Provider keys in the server vault stay encrypted at rest.
         </p>
       </div>
+      <SiteFooter />
     </main>
   );
 }
