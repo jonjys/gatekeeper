@@ -46,6 +46,18 @@ export function computeCost(input: CostInput): CostResult {
   };
 }
 
+/** Failed hops must not invent savings or a Stripe take. */
+export function costForCompletedHop(upstreamOk: boolean, cost: CostResult): CostResult {
+  if (upstreamOk) return cost;
+  return {
+    ...cost,
+    baselineUsd: 0,
+    actualUsd: 0,
+    savingsUsd: 0,
+    feeUsd: 0
+  };
+}
+
 export function tokensFromBodyAndUsage(
   bodyText: string,
   usage?: { prompt_tokens?: number; completion_tokens?: number; input_tokens?: number; output_tokens?: number }

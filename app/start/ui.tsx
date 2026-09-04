@@ -44,38 +44,64 @@ type Hop = {
   ledger: string;
 };
 
+type Vaulted = { provider: string; masked: string; created_at?: string };
+
 export default function StartUi() {
   const [token, setToken] = useState('');
   const [workspaceId, setWorkspaceId] = useState('');
   const [secret, setSecret] = useState('');
   const [provider, setProvider] = useState('openai');
   const [status, setStatus] = useState<string | null>(null);
+  const [statusKind, setStatusKind] = useState<'ok' | 'err'>('ok');
   const [busy, setBusy] = useState(false);
   const [ledger, setLedger] = useState<Ledger | null>(null);
   const [hop, setHop] = useState<Hop | null>(null);
   const [copied, setCopied] = useState(false);
+  const [pasteToken, setPasteToken] = useState('');
+  const [vaulted, setVaulted] = useState<Vaulted[]>([]);
 
   const loadLedger = useCallback(async (t: string) => {
     const res = await fetch('/api/v1/ledger', { headers: { 'x-gz-key': t } });
     if (res.ok) setLedger(await res.json());
   }, []);
 
+  const loadCredentials = useCallback(async (t: string) => {
+    const res = await fetch('/api/v1/credentials', { headers: { 'x-gz-key': t } });
+    if (!res.ok) return;
+    const data = (await res.json()) as { credentials?: Vaulted[] };
+    setVaulted(data.credentials || []);
+  }, []);
+
+  const note = (msg: string, kind: 'ok' | 'err' = 'ok') => {
+    setStatus(msg);
+    setStatusKind(kind);
+  };
+
   useEffect(() => {
     const t = localStorage.getItem(TOKEN_KEY) || '';
     const w = localStorage.getItem(WS_KEY) || '';
     setToken(t);
     setWorkspaceId(w);
-    if (t) void loadLedger(t);
+    if (t) {
+      void loadLedger(t);
+      void loadCredentials(t);
+    }
     if (typeof window === 'undefined') return;
     const sessionId = new URLSearchParams(window.location.search).get('session_id');
     if (!sessionId || !sessionId.startsWith('cs_')) return;
-    void fetch(`/api/checkout?session_id=${encodeURIComponent(sessionId)}`)
+    void fetch(`/api/checkout?session_id=${encodeURIComponent(sessionId)}`, {
+      headers: t ? { 'x-gz-key': t } : undefined
+    })
       .then((r) => r.json())
       .then((d) => {
-        if (d.customerId) setStatus(`Plan active${d.plan ? ` (${d.plan})` : ''}. Stripe customer linked.`);
+        if (d.customerId) {
+          note(
+            `Plan active${d.plan ? ` (${d.plan})` : ''}.${d.bound ? ' Stripe customer linked to this workspace.' : ' Stripe customer resolved.'}`
+          );
+        }
       })
       .catch(() => {});
-  }, [loadLedger]);
+  }, [loadLedger, loadCredentials]);
 
   useEffect(() => {
     if (!token) return;
@@ -98,10 +124,36 @@ export default function StartUi() {
       localStorage.setItem(WS_KEY, data.workspaceId);
       setToken(data.token);
       setWorkspaceId(data.workspaceId);
-      setStatus('Workspace created. Token stays in this browser.');
+      note('Workspace created. Token stays in this browser.');
       await loadLedger(data.token);
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : 'failed');
+      note(e instanceof Error ? e.message : 'failed', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restoreWorkspace() {
+    const t = pasteToken.trim();
+    if (!t.startsWith('gz_live_') && !t.startsWith('gz_test_')) {
+      note('Paste a gz_live_… token', 'err');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch('/api/v1/workspace', { headers: { 'x-gz-key': t } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'unknown workspace');
+      localStorage.setItem(TOKEN_KEY, t);
+      localStorage.setItem(WS_KEY, data.id);
+      setToken(t);
+      setWorkspaceId(data.id);
+      setPasteToken('');
+      note('Workspace restored on this device.');
+      await loadLedger(t);
+      await loadCredentials(t);
+    } catch (e) {
+      note(e instanceof Error ? e.message : 'restore failed', 'err');
     } finally {
       setBusy(false);
     }
@@ -120,9 +172,10 @@ export default function StartUi() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'credential failed');
       setSecret('');
-      setStatus(`Vaulted ${provider} as ${data.masked}. Encrypted at rest.`);
+      note(`Vaulted ${provider} as ${data.masked}. Encrypted at rest.`);
+      await loadCredentials(token);
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : 'failed');
+      note(e instanceof Error ? e.message : 'failed', 'err');
     } finally {
       setBusy(false);
     }
@@ -154,6 +207,7 @@ export default function StartUi() {
           ledger: res.headers.get('x-gz-ledger') || 'n/a'
         });
         setStatus(res.ok ? 'Proxy live.' : text.includes('missing_provider_credential') ? 'Vault a restricted OpenAI key below first.' : text.includes('KILL') ? 'Kill is armed. Tap Disarm, then hop.' : `Ping failed ${res.status}`);
+        setStatusKind(res.ok ? 'ok' : 'err');
       } else {
         const model = kind === 'save' ? 'gpt-4o' : 'gpt-4o-mini';
         const content =
@@ -198,10 +252,11 @@ export default function StartUi() {
                 ? 'Kill is armed. Tap Disarm, then hop.'
                 : `Upstream ${res.status}`
         );
+        setStatusKind(res.ok ? 'ok' : 'err');
       }
       await loadLedger(token);
     } catch (e) {
-      setStatus(e instanceof Error ? e.message : 'hop failed');
+      note(e instanceof Error ? e.message : 'hop failed', 'err');
     } finally {
       setBusy(false);
     }
@@ -216,6 +271,56 @@ export default function StartUi() {
       body: JSON.stringify({ preferCheap: next })
     });
     await loadLedger(token);
+  }
+
+  async function burnProvider(name: string) {
+    if (!token) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/v1/credentials?provider=${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+        headers: { 'x-gz-key': token }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'burn failed');
+      note(`Burned ${name} from the vault.`);
+      await loadCredentials(token);
+    } catch (e) {
+      note(e instanceof Error ? e.message : 'burn failed', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openBilling() {
+    if (!token) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/portal', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-gz-key': token }
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      if (data.error === 'no_customer') {
+        window.location.href = '/pricing?billing=1';
+        return;
+      }
+      throw new Error(data.detail || data.error || 'portal failed');
+    } catch (e) {
+      note(e instanceof Error ? e.message : 'billing failed', 'err');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copySnippet() {
+    await navigator.clipboard.writeText(snippet);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
   }
 
   async function copyToken() {
@@ -272,7 +377,13 @@ export default function StartUi() {
       )}
 
       {status && (
-        <p className="text-sm rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-emerald-300">
+        <p
+          className={`text-sm rounded-xl border px-4 py-3 ${
+            statusKind === 'err'
+              ? 'border-red-500/40 bg-red-500/10 text-red-300'
+              : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+          }`}
+        >
           {status}
         </p>
       )}
@@ -292,14 +403,33 @@ export default function StartUi() {
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={createWorkspace}
-            className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-black hover:bg-emerald-400 disabled:opacity-50 min-h-11"
-          >
-            {busy ? 'Creating…' : 'Create workspace'}
-          </button>
+          <div className="space-y-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={createWorkspace}
+              className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-black hover:bg-emerald-400 disabled:opacity-50 min-h-11"
+            >
+              {busy ? 'Creating…' : 'Create workspace'}
+            </button>
+            <p className="text-xs text-zinc-500">Already have a token?</p>
+            <input
+              value={pasteToken}
+              onChange={(e) => setPasteToken(e.target.value)}
+              placeholder="gz_live_…"
+              autoComplete="off"
+              spellCheck={false}
+              className="w-full rounded-lg bg-black/40 border border-zinc-700 px-3 py-3 text-sm min-h-11 font-mono"
+            />
+            <button
+              type="button"
+              disabled={busy || !pasteToken}
+              onClick={() => void restoreWorkspace()}
+              className="text-xs text-zinc-400 hover:text-emerald-400 min-h-11"
+            >
+              Restore workspace
+            </button>
+          </div>
         )}
         {workspaceId && <p className="text-xs text-zinc-500">id {workspaceId}</p>}
       </section>
@@ -336,6 +466,25 @@ export default function StartUi() {
         >
           Encrypt & store
         </button>
+        {vaulted.length > 0 && (
+          <ul className="text-xs font-mono text-zinc-400 space-y-1">
+            {vaulted.map((c) => (
+              <li key={c.provider} className="flex justify-between gap-2 items-center">
+                <span>
+                  {c.provider} · {c.masked}
+                </span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void burnProvider(c.provider)}
+                  className="text-red-400 hover:text-red-300 disabled:opacity-40 min-h-11"
+                >
+                  Burn
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="card space-y-3">
@@ -401,10 +550,10 @@ export default function StartUi() {
         rows={ledger?.rows || []}
         busy={busy}
         onChanged={() => (token ? loadLedger(token) : Promise.resolve())}
-        onStatus={setStatus}
+        onStatus={(msg) => note(msg, /fail|error|KILL/i.test(msg) && !/DISARMED/.test(msg) ? 'err' : 'ok')}
       />
 
-      <VacuumTrapPanel token={token} busy={busy} onStatus={setStatus} />
+      <VacuumTrapPanel token={token} busy={busy} onStatus={(msg) => note(msg, /fail/i.test(msg) ? 'err' : 'ok')} />
 
       <section className="card space-y-3">
         <h2 className="font-semibold">Ledger</h2>
@@ -425,6 +574,19 @@ export default function StartUi() {
       <section className="card space-y-3">
         <h2 className="font-semibold">Endpoint</h2>
         <pre className="text-xs bg-black/50 rounded-xl p-4 overflow-x-auto text-emerald-300/90">{snippet}</pre>
+        <div className="flex flex-wrap gap-3">
+          <button type="button" onClick={() => void copySnippet()} className="text-xs text-zinc-400 hover:text-emerald-400 min-h-11">
+            {copied ? 'Copied' : 'Copy endpoint'}
+          </button>
+          {token && (
+            <button type="button" onClick={() => void openBilling()} className="text-xs text-zinc-400 hover:text-emerald-400 min-h-11">
+              Billing portal
+            </button>
+          )}
+          <Link href="/pricing" className="text-xs text-zinc-400 hover:text-emerald-400 min-h-11 inline-flex items-center">
+            Pricing
+          </Link>
+        </div>
       </section>
     </main>
   );

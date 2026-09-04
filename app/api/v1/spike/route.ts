@@ -5,7 +5,7 @@ import { slog } from '@/lib/engine/log';
 
 export const dynamic = 'force-dynamic';
 
-/** Demo kill: write a $10k runaway hop, arm the switch. */
+/** Demo kill: write a $10k runaway hop, arm the switch. Spike is not spend and not savings. */
 export async function POST(req: NextRequest) {
   const auth = await requireWorkspace(req);
   if ('error' in auth) return auth.error;
@@ -23,7 +23,10 @@ export async function POST(req: NextRequest) {
     fee_usd: 0,
     status: 402
   });
-  await setKilled(auth.ws.id, true, '$10k spike');
+  const kill = await setKilled(auth.ws.id, true, '$10k spike');
+  if (!kill.ok) {
+    return NextResponse.json({ error: kill.error || 'kill_failed' }, { status: 500 });
+  }
   slog('spike', { workspace: auth.ws.id, blockedUsd, budgetUsd, ledger: written.via });
   return NextResponse.json({
     ok: true,

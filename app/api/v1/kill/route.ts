@@ -20,7 +20,10 @@ export async function POST(req: NextRequest) {
   }
   const killed = action === 'arm' || action === 'kill';
   const reason = body.reason || (killed ? 'manual' : 'disarmed');
-  await setKilled(auth.ws.id, killed, reason);
+  const result = await setKilled(auth.ws.id, killed, reason);
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error || 'kill_failed' }, { status: 500 });
+  }
   slog('kill', { workspace: auth.ws.id, killed, reason });
   return NextResponse.json({
     ok: true,

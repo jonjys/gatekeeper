@@ -6,6 +6,7 @@ type Row = {
   actual_usd: number;
   created_at: string;
   action?: string;
+  provider?: string;
 };
 
 type Props = {
@@ -45,7 +46,14 @@ export default function KillSwitchPro({
     const w = 320;
     const h = 96;
     const pad = 8;
-    const chronological = [...rows].reverse();
+    const chronological = [...rows]
+      .filter(
+        (r) =>
+          r.action !== 'spike' &&
+          r.action !== 'probe' &&
+          String(r.provider || '').toLowerCase() !== 'sim'
+      )
+      .reverse();
     let acc = 0;
     const series = chronological.map((r) => {
       acc += Number(r.actual_usd) || 0;

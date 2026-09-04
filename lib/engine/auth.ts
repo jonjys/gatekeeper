@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { loadWorkspaceByToken, type Workspace } from './workspace';
 
+export function isGzToken(token: string): boolean {
+  return token.startsWith('gz_live_') || token.startsWith('gz_test_');
+}
+
 export function readGzToken(req: NextRequest): string {
   const h = req.headers.get('x-gz-key');
   if (h) return h.trim();
@@ -13,7 +17,7 @@ export async function requireWorkspace(
   req: NextRequest
 ): Promise<{ ws: Workspace; token: string } | { error: NextResponse }> {
   const token = readGzToken(req);
-  if (!token.startsWith('gz_live_') && !token.startsWith('gz_test_')) {
+  if (!isGzToken(token)) {
     return {
       error: NextResponse.json(
         { error: 'missing_workspace_token', hint: 'Send x-gz-key: gz_live_…' },

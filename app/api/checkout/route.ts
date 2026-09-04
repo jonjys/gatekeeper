@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { getPaidPlan, siteUrl, PLANS } from '@/lib/billing';
+import { getPaidPlan, siteUrl, PLANS, savingsFeeBpsForPlan } from '@/lib/billing';
+import { isGzToken, readGzToken, requireWorkspace } from '@/lib/engine/auth';
+import { updateWorkspace } from '@/lib/engine/workspace';
 
 /**
  * Stripe Checkout for GateZero paid plans.
@@ -96,11 +98,25 @@ export async function GET(req: NextRequest) {
           : session.customer && 'id' in session.customer
             ? (session.customer as { id: string }).id
             : null;
+      const plan = session.metadata?.gatezero_plan || null;
+      let bound = false;
+      if (isGzToken(readGzToken(req)) && customerId) {
+        const auth = await requireWorkspace(req);
+        if (!('error' in auth)) {
+          await updateWorkspace(auth.ws.id, {
+            stripe_customer_id: customerId,
+            plan: plan || auth.ws.plan,
+            savings_fee_bps: savingsFeeBpsForPlan(plan || auth.ws.plan)
+          });
+          bound = true;
+        }
+      }
       return NextResponse.json({
         id: session.id,
         status: session.status,
         customerId,
-        plan: session.metadata?.gatezero_plan || null
+        plan,
+        bound
       });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);

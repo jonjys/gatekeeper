@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { computeCost } from '../lib/engine/cost';
+import { computeCost, costForCompletedHop } from '../lib/engine/cost';
+import { estimateHopUsd, findPrice } from '../lib/engine/prices';
 import { feeFromSavingsUsd } from '../lib/engine/prices';
 import { applyModelToBody, decideRoute } from '../lib/engine/route';
 import { evaluatePolicy, looksLikeTrapKey } from '../lib/engine/policy';
@@ -9,6 +10,11 @@ import { buildLedgerPayload } from '../lib/engine/workspace';
 import { aggregateLedgerRows } from '../lib/engine/stats';
 import { summarizeLedger } from '../lib/engine/workspace';
 import { mintTrapSecret } from '../lib/vacuum';
+import { isUniqueViolation, shouldMeterSavingsFee } from '../lib/engine/proxy-utils';
+import { bodyWantsStream, parseSseUsage, prepareOutboundBody } from '../lib/engine/stream';
+import { savingsFeeBpsForPlan } from '../lib/billing';
+import { isGzToken } from '../lib/engine/auth';
+import { NextRequest } from 'next/server';
 
 describe('cost engine', () => {
   it('charges 20% of verified savings when routing to cheaper model', () => {
@@ -261,5 +267,147 @@ describe('trap mint', () => {
     expect(a.startsWith('sk-trap_')).toBe(true);
     expect(a).not.toBe(b);
     expect(looksLikeTrapKey(a)).toBe(true);
+  });
+});
+
+describe('price matching', () => {
+  it('does not price gpt-4o-mini dated ids as gpt-4o', () => {
+    const mini = findPrice('openai', 'gpt-4o-mini-2024-07-18');
+    expect(mini?.model).toBe('gpt-4o-mini');
+    expect(mini?.cheaperAlias).toBeUndefined();
+    const dated = findPrice('openai', 'gpt-4o-2024-08-06');
+    expect(dated?.model).toBe('gpt-4o');
+    expect(dated?.cheaperAlias).toBe('gpt-4o-mini');
+  });
+
+  it('estimates next hop from the price table', () => {
+    expect(estimateHopUsd('openai', 'gpt-4o-mini')).toBeGreaterThan(0);
+    expect(estimateHopUsd('openai', 'gpt-4o')).toBeGreaterThan(estimateHopUsd('openai', 'gpt-4o-mini'));
+  });
+});
+
+describe('failed hop cost', () => {
+  it('zeros savings and fee when upstream fails', () => {
+    const ok = computeCost({
+      provider: 'openai',
+      requestedModel: 'gpt-4o',
+      routedModel: 'gpt-4o-mini',
+      promptTokens: 1000,
+      completionTokens: 100,
+      savingsFeeBps: 2000
+    });
+    expect(ok.feeUsd).toBeGreaterThan(0);
+    const failed = costForCompletedHop(false, ok);
+    expect(failed.feeUsd).toBe(0);
+    expect(failed.savingsUsd).toBe(0);
+    expect(failed.actualUsd).toBe(0);
+  });
+});
+
+describe('policy daily cap', () => {
+  it('fail-closed daily returns 429 without killing monthly', () => {
+    const d = evaluatePolicy({
+      killed: false,
+      failMode: 'closed',
+      monthlySpentUsd: 1,
+      dailySpentUsd: 9.5,
+      monthlyBudgetUsd: 50,
+      dailyBudgetUsd: 10,
+      trapHit: false,
+      estimatedNextUsd: 1
+    });
+    expect(d.allow).toBe(false);
+    expect(d.status).toBe(429);
+    expect(d.code).toBe('DAILY_CAP');
+  });
+});
+
+describe('meter gating', () => {
+  it('meters only new ledger writes with verified savings', () => {
+    expect(
+      shouldMeterSavingsFee({
+        feeUsd: 0.02,
+        upstreamOk: true,
+        stripeCustomerId: 'cus_x',
+        ledgerVia: 'ledger_requests'
+      })
+    ).toBe(true);
+    expect(
+      shouldMeterSavingsFee({
+        feeUsd: 0.02,
+        upstreamOk: true,
+        stripeCustomerId: 'cus_x',
+        ledgerVia: 'idempotent'
+      })
+    ).toBe(false);
+    expect(
+      shouldMeterSavingsFee({
+        feeUsd: 0.02,
+        upstreamOk: false,
+        stripeCustomerId: 'cus_x',
+        ledgerVia: 'ledger_requests'
+      })
+    ).toBe(false);
+  });
+
+  it('treats postgres 23505 as unique', () => {
+    expect(isUniqueViolation({ code: '23505' })).toBe(true);
+    expect(isUniqueViolation({ code: '42501' })).toBe(false);
+  });
+});
+
+describe('stream helpers', () => {
+  it('injects OpenAI stream_options.include_usage', () => {
+    const raw = JSON.stringify({ model: 'gpt-4o', stream: true, messages: [] });
+    expect(bodyWantsStream(raw)).toBe(true);
+    const out = JSON.parse(prepareOutboundBody(raw, 'gpt-4o-mini', 'openai'));
+    expect(out.model).toBe('gpt-4o-mini');
+    expect(out.stream_options.include_usage).toBe(true);
+  });
+
+  it('parses OpenAI and Anthropic SSE usage', () => {
+    const openai = parseSseUsage('data: {"usage":{"prompt_tokens":11,"completion_tokens":4}}\n');
+    expect(openai?.prompt_tokens).toBe(11);
+    expect(openai?.completion_tokens).toBe(4);
+    const anthropic = parseSseUsage(
+      'data: {"type":"message_start","message":{"usage":{"input_tokens":20}}}\ndata: {"type":"message_delta","usage":{"output_tokens":7}}\n'
+    );
+    expect(anthropic?.prompt_tokens).toBe(20);
+    expect(anthropic?.completion_tokens).toBe(7);
+  });
+});
+
+describe('plan fee bps', () => {
+  it('enterprise is 15%', () => {
+    expect(savingsFeeBpsForPlan('enterprise')).toBe(1500);
+    expect(savingsFeeBpsForPlan('pro')).toBe(2000);
+    expect(savingsFeeBpsForPlan('free')).toBe(2000);
+  });
+});
+
+describe('workspace token', () => {
+  it('accepts live and test prefixes only', () => {
+    expect(isGzToken('gz_live_abc')).toBe(true);
+    expect(isGzToken('gz_test_abc')).toBe(true);
+    expect(isGzToken('gz_foo')).toBe(false);
+    const req = new NextRequest('http://localhost/api/v1/ledger', {
+      headers: { 'x-gz-key': 'gz_live_abc' }
+    });
+    expect(req.headers.get('x-gz-key')).toBe('gz_live_abc');
+  });
+});
+
+describe('vault production key', () => {
+  it('refuses a missing wrapping key in production', () => {
+    const prevKey = process.env.GATEZERO_VAULT_KEY;
+    const prevNode = process.env.NODE_ENV;
+    const prevVercel = process.env.VERCEL_ENV;
+    process.env.NODE_ENV = 'production';
+    delete process.env.GATEZERO_VAULT_KEY;
+    delete process.env.VERCEL_ENV;
+    expect(() => encryptSecret('sk-test')).toThrow(/GATEZERO_VAULT_KEY/);
+    process.env.NODE_ENV = prevNode;
+    process.env.VERCEL_ENV = prevVercel;
+    process.env.GATEZERO_VAULT_KEY = prevKey;
   });
 });

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/supabase-admin';
+import { vaultConfigured } from '@/lib/engine/vault';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -38,7 +39,7 @@ export async function GET() {
       },
       flags: {
         supabase: Boolean(db),
-        vault: Boolean(process.env.GATEZERO_VAULT_KEY),
+        vault: vaultConfigured(),
         stripe: Boolean(process.env.STRIPE_SECRET_KEY)
       },
       ts: new Date().toISOString()

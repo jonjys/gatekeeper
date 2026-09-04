@@ -16,9 +16,9 @@ html, body {
   background: #0a0a0a;
   color: #fafafa;
   min-height: 100%;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
   overscroll-behavior-y: contain;
 }
 

@@ -38,9 +38,9 @@ export async function fetchWithRetry(
   init: RequestInit,
   opts: { timeoutMs?: number; retries?: number } = {}
 ): Promise<Response> {
-  const timeoutMs = opts.timeoutMs ?? 30_000;
   const method = String(init.method || 'GET').toUpperCase();
   const safe = method === 'GET' || method === 'HEAD';
+  const timeoutMs = opts.timeoutMs ?? (safe ? 30_000 : 120_000);
   const retries = safe ? opts.retries ?? 3 : 1;
   let lastErr: unknown;
   for (let i = 0; i < retries; i++) {
