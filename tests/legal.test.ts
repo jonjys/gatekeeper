@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import sitemap from '../app/sitemap';
 import robots from '../app/robots';
@@ -6,13 +8,37 @@ import { PRICE_AS_OF, PRICE_SOURCE } from '../lib/engine/prices';
 import { jsonError } from '../lib/engine/errors';
 import { redactForLog, slog } from '../lib/engine/log';
 
+const IDENTITY_SOURCES = [
+  'lib/company.ts',
+  'components/SiteFooter.tsx',
+  'app/privacy/page.tsx',
+  'app/terms/page.tsx',
+  'app/contact/page.tsx',
+  'app/page.tsx'
+];
+
+function readIdentitySource() {
+  return IDENTITY_SOURCES.map((rel) => readFileSync(resolve(process.cwd(), rel), 'utf8')).join(
+    '\n'
+  );
+}
+
 describe('company facts', () => {
-  it('only publishes approved Nytto Labs contacts', () => {
+  it('only publishes approved Nytto Labs identity and contacts', () => {
     expect(COMPANY.operator).toBe('Nytto Labs');
+    expect(COMPANY.proprietor).toBe('Fredrik Kornelind');
     expect(COMPANY.country).toBe('Sweden');
+    expect(COMPANY.form).toBe('Swedish sole trader');
+    expect(COMPANY.fTax).toBe('Approved for F-tax');
+    expect(COMPANY.vat).toBe('VAT registered');
     expect(COMPANY.website).toBe('https://nyttolabs.com');
-    expect(COMPANY.legalLine).toBe('Operated by Nytto Labs, Sweden.');
+    expect(COMPANY.legalLine).toBe(
+      'Operated by Nytto Labs (Fredrik Kornelind), a Swedish sole trader approved for F-tax and registered for VAT.'
+    );
     expect(COMPANY.byline).toBe('A product by Nytto Labs');
+    expect(COMPANY.footerIdentity).toBe(
+      'Nytto Labs · Sweden · approved for F-tax · VAT registered'
+    );
     expect(COMPANY.emails).toEqual({
       general: 'hello@nyttolabs.com',
       support: 'support@nyttolabs.com',
@@ -21,6 +47,20 @@ describe('company facts', () => {
     });
     expect(SITE_ORIGIN).toBe('https://getgatezero.com');
     expect(siteUrl('/privacy')).toBe('https://getgatezero.com/privacy');
+  });
+
+  it('does not publish withheld legal details or stale registration claims', () => {
+    const published = JSON.stringify(COMPANY);
+    const source = readIdentitySource();
+    expect(published).not.toMatch(/fkornelind@/i);
+    expect(source).not.toMatch(/fkornelind@/i);
+    expect(source).not.toMatch(/registration in progress/i);
+    expect(source).not.toMatch(/not VAT registered/i);
+    expect(source).not.toMatch(/personnummer/i);
+    expect(COMPANY.legalLine).toMatch(/approved for F-tax/i);
+    expect(COMPANY.legalLine).toMatch(/registered for VAT/i);
+    expect(published).not.toMatch(/\d{6}-\d{4}/);
+    expect(published).not.toMatch(/SE\d{10}01/i);
   });
 });
 
