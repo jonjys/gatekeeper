@@ -23,6 +23,13 @@ export default function TermsPage() {
         {COMPANY.legalLine} These terms cover GateZero ({COMPANY.productUrl}), an API spend router.
       </p>
 
+      <h2>Seller</h2>
+      <p>
+        The seller is {COMPANY.operator}, operated by {COMPANY.proprietor}. {COMPANY.form}.{' '}
+        {COMPANY.fTax}. {COMPANY.vat}. Billing:{' '}
+        <a href={`mailto:${COMPANY.emails.billing}`}>{COMPANY.emails.billing}</a>.
+      </p>
+
       <h2>The product</h2>
       <p>
         You point API traffic at <code>/api/proxy</code> with a workspace token (

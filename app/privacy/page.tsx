@@ -28,7 +28,8 @@ export default function PrivacyPage() {
 
       <h2>Who we are</h2>
       <p>
-        Operator: {COMPANY.operator}, {COMPANY.country}. Website:{' '}
+        Operator: {COMPANY.operator}, operated by {COMPANY.proprietor}. {COMPANY.form}.{' '}
+        {COMPANY.fTax}. {COMPANY.vat}. Website:{' '}
         <a href={COMPANY.website}>{COMPANY.website.replace('https://', '')}</a>. Privacy and GDPR
         requests: <a href={`mailto:${COMPANY.emails.privacy}`}>{COMPANY.emails.privacy}</a>.
       </p>

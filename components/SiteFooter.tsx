@@ -7,6 +7,7 @@ export default function SiteFooter() {
       <p>
         GateZero · {COMPANY.byline} · no save → no fee
       </p>
+      <p>{COMPANY.footerIdentity}</p>
       <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
         <Link href="/contact" className="hover:text-emerald-400">
           Contact
