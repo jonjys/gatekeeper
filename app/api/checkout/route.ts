@@ -2,34 +2,37 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { getPaidPlan, siteUrl, PLANS, savingsFeeBpsForPlan } from '@/lib/billing';
 import { isGzToken, readGzToken, requireWorkspace } from '@/lib/engine/auth';
+import { jsonError } from '@/lib/engine/errors';
 import { updateWorkspace } from '@/lib/engine/workspace';
 
 /**
  * Stripe Checkout for GateZero paid plans.
+ * Requires x-gz-key so the session binds to a real workspace.
  * Prefer STRIPE_PRICE_* from env; falls back to price_data.
  * Never receives vault secrets or API keys.
  */
 export async function POST(req: NextRequest) {
   if (!stripe) {
-    return NextResponse.json(
-      { error: 'STRIPE_SECRET_KEY not configured' },
-      { status: 503 }
-    );
+    return jsonError('stripe_unconfigured', 503, { hint: 'Set STRIPE_SECRET_KEY' });
   }
 
-  let body: { plan?: string; email?: string; workspaceId?: string };
+  const auth = await requireWorkspace(req);
+  if ('error' in auth) {
+    return jsonError('missing_workspace', 401, {
+      hint: 'Create a workspace on /start first, then upgrade. Send x-gz-key.'
+    });
+  }
+
+  let body: { plan?: string; email?: string };
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    return jsonError('invalid_json', 400);
   }
 
   const plan = getPaidPlan(body.plan || '');
   if (!plan) {
-    return NextResponse.json(
-      { error: 'plan must be pro or enterprise' },
-      { status: 400 }
-    );
+    return jsonError('invalid_plan', 400, { hint: 'plan must be pro or enterprise' });
   }
 
   const origin = siteUrl(req.headers.get('origin'));
@@ -52,20 +55,23 @@ export async function POST(req: NextRequest) {
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
-      customer_email: body.email || undefined,
+      ...(auth.ws.stripe_customer_id
+        ? { customer: auth.ws.stripe_customer_id }
+        : body.email
+          ? { customer_email: body.email }
+          : {}),
       line_items: [lineItem],
-      // {CHECKOUT_SESSION_ID} is replaced by Stripe so we can resolve customer on return
       success_url: `${origin}/start?checkout=success&plan=${plan.id}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/pricing?checkout=cancel`,
       metadata: {
         gatezero_plan: plan.id,
-        gatezero_workspace: body.workspaceId || '',
+        gatezero_workspace: auth.ws.id,
         take_rate: String(plan.takeRate)
       },
       subscription_data: {
         metadata: {
           gatezero_plan: plan.id,
-          gatezero_workspace: body.workspaceId || '',
+          gatezero_workspace: auth.ws.id,
           take_rate: String(plan.takeRate)
         }
       }
@@ -74,14 +80,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       url: session.url,
       id: session.id,
-      usedPriceId: !!plan.priceId
+      usedPriceId: !!plan.priceId,
+      workspaceId: auth.ws.id
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json(
-      { error: 'checkout failed', detail: message },
-      { status: 502 }
-    );
+    return jsonError('checkout_failed', 502, { detail: message });
   }
 }
 
@@ -120,7 +124,7 @@ export async function GET(req: NextRequest) {
       });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      return NextResponse.json({ error: 'session lookup failed', detail: message }, { status: 502 });
+      return jsonError('session_lookup_failed', 502, { detail: message });
     }
   }
 
@@ -133,6 +137,7 @@ export async function GET(req: NextRequest) {
       hasPriceId: !!p.priceId,
       entitlements: p.entitlements
     })),
-    siteUrl: siteUrl()
+    siteUrl: siteUrl(),
+    note: 'POST /api/checkout with x-gz-key to start a paid plan.'
   });
 }

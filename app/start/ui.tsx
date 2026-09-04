@@ -4,6 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import KillSwitchPro from '@/components/KillSwitchPro';
 import VacuumTrapPanel from '@/components/VacuumTrapPanel';
+import {
+  cheapPassthroughModel,
+  hopPath,
+  hopSnippet,
+  isRoutableProvider,
+  modelsPath,
+  proveRequestedModel
+} from '@/lib/engine/hop';
 
 const TOKEN_KEY = 'gz_token';
 const WS_KEY = 'gz_workspace';
@@ -87,7 +95,11 @@ export default function StartUi() {
       void loadCredentials(t);
     }
     if (typeof window === 'undefined') return;
-    const sessionId = new URLSearchParams(window.location.search).get('session_id');
+    const q = new URLSearchParams(window.location.search);
+    const sessionId = q.get('session_id');
+    if (q.get('upgrade')) {
+      note('Create or restore a workspace here, then return to Pricing to checkout.');
+    }
     if (!sessionId || !sessionId.startsWith('cs_')) return;
     void fetch(`/api/checkout?session_id=${encodeURIComponent(sessionId)}`, {
       headers: t ? { 'x-gz-key': t } : undefined
@@ -183,10 +195,19 @@ export default function StartUi() {
 
   async function runHop(kind: 'models' | 'chat' | 'save') {
     if (!token) return;
+    const hopProvider = vaulted.some((c) => c.provider === provider)
+      ? provider
+      : vaulted[0]?.provider || 'openai';
+    if (!isRoutableProvider(hopProvider)) {
+      note('Vault openai or anthropic first.', 'err');
+      return;
+    }
     setBusy(true);
     try {
       if (kind === 'models') {
-        const res = await fetch('/api/proxy/openai/v1/models', { headers: { 'x-gz-key': token } });
+        const res = await fetch(`/api/proxy/${hopProvider}/${modelsPath(hopProvider)}`, {
+          headers: { 'x-gz-key': token }
+        });
         const text = await res.text();
         let n = 0;
         try {
@@ -203,37 +224,54 @@ export default function StartUi() {
           actual: res.headers.get('x-gz-actual-usd') || '0',
           savings: res.headers.get('x-gz-savings-usd') || '0',
           fee: res.headers.get('x-gz-fee-usd') || '0',
-          reply: res.ok ? `${n} models through the booth` : text.slice(0, 240),
+          reply: res.ok ? `${n} models through the booth (${hopProvider})` : text.slice(0, 240),
           ledger: res.headers.get('x-gz-ledger') || 'n/a'
         });
-        setStatus(res.ok ? 'Proxy live.' : text.includes('missing_provider_credential') ? 'Vault a restricted OpenAI key below first.' : text.includes('KILL') ? 'Kill is armed. Tap Disarm, then hop.' : `Ping failed ${res.status}`);
+        setStatus(
+          res.ok
+            ? 'Proxy live.'
+            : text.includes('missing_provider_credential')
+              ? `Vault a restricted ${hopProvider} key below first.`
+              : text.includes('KILL')
+                ? 'Kill is armed. Tap Disarm, then hop.'
+                : `Ping failed ${res.status}`
+        );
         setStatusKind(res.ok ? 'ok' : 'err');
       } else {
-        const model = kind === 'save' ? 'gpt-4o' : 'gpt-4o-mini';
+        const requested = kind === 'save' ? proveRequestedModel(hopProvider) : cheapPassthroughModel(hopProvider);
         const content =
           kind === 'save'
-            ? 'Reply with the single word ok. This hop is a savings proof: requested gpt-4o must route cheaper.'
+            ? `Reply with the single word ok. This hop is a savings proof: requested ${requested} must route cheaper.`
             : 'say ok';
-        const res = await fetch('/api/proxy/openai/v1/chat/completions', {
+        const body =
+          hopProvider === 'anthropic'
+            ? { model: requested, max_tokens: 32, messages: [{ role: 'user', content }] }
+            : { model: requested, messages: [{ role: 'user', content }] };
+        const res = await fetch(`/api/proxy/${hopProvider}/${hopPath(hopProvider)}`, {
           method: 'POST',
           headers: { 'content-type': 'application/json', 'x-gz-key': token },
-          body: JSON.stringify({ model, messages: [{ role: 'user', content }] })
+          body: JSON.stringify(body)
         });
         const text = await res.text();
         let reply = text.slice(0, 280);
         try {
           const j = JSON.parse(text) as {
             choices?: Array<{ message?: { content?: string } }>;
+            content?: Array<{ text?: string }>;
             error?: { message?: string };
           };
-          reply = j.choices?.[0]?.message?.content || j.error?.message || reply;
+          reply =
+            j.choices?.[0]?.message?.content ||
+            j.content?.[0]?.text ||
+            j.error?.message ||
+            reply;
         } catch {
           /* ignore */
         }
         setHop({
           action: res.headers.get('x-gz-action') || (res.ok ? 'passthrough' : 'error'),
-          requested: res.headers.get('x-gz-requested-model') || model,
-          routed: res.headers.get('x-gz-routed-model') || model,
+          requested: res.headers.get('x-gz-requested-model') || requested,
+          routed: res.headers.get('x-gz-routed-model') || requested,
           baseline: res.headers.get('x-gz-baseline-usd') || '0',
           actual: res.headers.get('x-gz-actual-usd') || '0',
           savings: res.headers.get('x-gz-savings-usd') || '0',
@@ -247,7 +285,7 @@ export default function StartUi() {
               ? `Routed ${res.headers.get('x-gz-requested-model')} → ${res.headers.get('x-gz-routed-model')}`
               : 'Chat live.'
             : text.includes('missing_provider_credential')
-              ? 'Vault a restricted OpenAI key below first.'
+              ? `Vault a restricted ${hopProvider} key below first.`
               : text.includes('KILL')
                 ? 'Kill is armed. Tap Disarm, then hop.'
                 : `Upstream ${res.status}`
@@ -331,10 +369,12 @@ export default function StartUi() {
   }
 
   const host = typeof window !== 'undefined' ? window.location.origin : 'https://getgatezero.com';
+  const hopProvider = vaulted.some((c) => c.provider === provider)
+    ? provider
+    : vaulted[0]?.provider || 'openai';
   const snippet = useMemo(
-    () =>
-      `${host}/api/proxy/openai/v1/chat/completions\nx-gz-key: ${token || 'gz_live_…'}`,
-    [host, token]
+    () => hopSnippet(host, hopProvider, token),
+    [host, hopProvider, token]
   );
 
   const totals = ledger?.totals;
@@ -357,7 +397,8 @@ export default function StartUi() {
       </div>
       <h1 className="text-3xl font-bold tracking-tight">The booth.</h1>
       <p className="text-sm text-zinc-400 leading-relaxed">
-        Vault a restricted key. Ask gpt-4o — we send mini. Kill if it runs. No save → no fee.
+        Vault a restricted key. Ask gpt-4o or Claude sonnet — we send the cheap alias. Kill if it runs.
+        No save → no fee.
       </p>
 
       {token && (
@@ -437,7 +478,8 @@ export default function StartUi() {
       <section className="card space-y-3">
         <h2 className="font-semibold">2. Vault a restricted key</h2>
         <p className="text-xs text-zinc-500">
-          OpenAI → API keys → new key with a $5 cap. Not your master key. Encrypted AES-256-GCM. Burn anytime.
+          OpenAI or Anthropic → restricted key with a spend cap. Not your master key. Encrypted
+          AES-256-GCM. Burn anytime.
         </p>
         <select
           value={provider}
@@ -451,7 +493,7 @@ export default function StartUi() {
           type="password"
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
-          placeholder="sk-… restricted key"
+          placeholder={provider === 'anthropic' ? 'sk-ant-… restricted key' : 'sk-… restricted key'}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="none"
@@ -490,7 +532,8 @@ export default function StartUi() {
       <section className="card space-y-3">
         <h2 className="font-semibold">3. Prove cheaper route</h2>
         <p className="text-sm text-zinc-500">
-          Asks for gpt-4o. Engine sends gpt-4o-mini. No save → no fee.
+          OpenAI: gpt-4o → gpt-4o-mini. Anthropic: claude sonnet → haiku. Uses the provider you vaulted
+          (or the dropdown if both).
         </p>
         <div className="flex flex-col sm:flex-row gap-2">
           <button
@@ -539,14 +582,17 @@ export default function StartUi() {
             {ledger?.preferCheap !== false ? 'ON' : 'OFF'}
           </button>
         </div>
-        <p className="text-sm text-zinc-500">gpt-4o → gpt-4o-mini when on.</p>
+        <p className="text-sm text-zinc-500">gpt-4o → mini · claude sonnet → haiku when on.</p>
       </section>
 
       <KillSwitchPro
         token={token}
         killed={killed}
         budgetUsd={Number(ledger?.monthlyBudgetUsd) || 50}
+        dailyBudgetUsd={Number(ledger?.dailyBudgetUsd) || 10}
         spendUsd={Number(ledger?.spend?.monthly) || Number(totals?.actual) || 0}
+        dailySpendUsd={Number(ledger?.spend?.daily) || 0}
+        failMode={ledger?.failMode || 'closed'}
         rows={ledger?.rows || []}
         busy={busy}
         onChanged={() => (token ? loadLedger(token) : Promise.resolve())}

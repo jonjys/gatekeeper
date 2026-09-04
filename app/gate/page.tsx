@@ -37,10 +37,21 @@ export default async function GateZeroGatePage() {
           <p className="badge">gatezero index</p>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">Live hops. Real costs.</h1>
           <p className="text-zinc-400 max-w-xl leading-relaxed">
-            Anonymized aggregates from proxied hops. No bodies, no keys — cost and savings
-            only. Simulated spikes are excluded.
+            Anonymized aggregates from the spend router. One hop URL, cheaper model when you allow
+            it, kill on budget. No bodies, no keys — cost and savings only. Simulated spikes are
+            excluded.
           </p>
         </div>
+
+        <section className="card space-y-2">
+          <p className="text-xs uppercase tracking-wider text-zinc-500">Hop URL</p>
+          <pre className="text-xs bg-black/50 rounded-xl p-4 overflow-x-auto text-emerald-300/90 leading-relaxed">{`https://getgatezero.com/api/proxy/openai/v1/chat/completions
+https://getgatezero.com/api/proxy/anthropic/v1/messages
+Header: x-gz-key: gz_live_…`}</pre>
+          <p className="text-xs text-zinc-500">
+            /api/gate is a leftover Service Worker demo. It is not the money path.
+          </p>
+        </section>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[

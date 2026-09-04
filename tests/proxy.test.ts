@@ -198,4 +198,92 @@ describe('handleProxy', () => {
     expect(res.headers.get('x-gz-idempotent')).toBe('1');
     expect(global.fetch).not.toHaveBeenCalled();
   });
+
+  it('402 budget kill persists and 429 daily cap does not', async () => {
+    loadWorkspaceByToken.mockResolvedValue({ ...ws });
+    spendWindows.mockResolvedValue({ monthly: 50, daily: 0 });
+    const monthly = await handleProxy(req('openai/v1/models'), 'openai', ['v1', 'models']);
+    expect(monthly.status).toBe(402);
+    expect(await monthly.json()).toMatchObject({ error: 'BUDGET' });
+    expect(markKilled).toHaveBeenCalled();
+
+    markKilled.mockClear();
+    insertLedger.mockClear();
+    spendWindows.mockResolvedValue({ monthly: 0, daily: 10 });
+    const daily = await handleProxy(req('openai/v1/models'), 'openai', ['v1', 'models']);
+    expect(daily.status).toBe(429);
+    expect(await daily.json()).toMatchObject({ error: 'DAILY_CAP' });
+    expect(markKilled).not.toHaveBeenCalled();
+  });
+
+  it('routes Anthropic sonnet to haiku with x-api-key', async () => {
+    loadWorkspaceByToken.mockResolvedValue({ ...ws });
+    loadCredential.mockResolvedValue(encryptSecret('sk-ant-test'));
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          content: [{ type: 'text', text: 'ok' }],
+          usage: { input_tokens: 12, output_tokens: 3 }
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } }
+      )
+    );
+    const r = req('anthropic/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 32,
+        messages: [{ role: 'user', content: 'hi' }]
+      })
+    });
+    const res = await handleProxy(r, 'anthropic', ['v1', 'messages']);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-gz-action')).toBe('cheaper_alias');
+    expect(res.headers.get('x-gz-routed-model')).toBe('claude-3-5-haiku-20241022');
+    expect(Number(res.headers.get('x-gz-savings-usd'))).toBeGreaterThan(0);
+    const sent = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(sent[0]).toBe('https://api.anthropic.com/v1/messages');
+    const hdrs = sent[1].headers as Headers;
+    expect(hdrs.get('x-api-key')).toBe('sk-ant-test');
+    expect(hdrs.get('anthropic-version')).toBe('2023-06-01');
+    expect(hdrs.get('authorization')).toBeNull();
+    const body = JSON.parse(sent[1].body as string);
+    expect(body.model).toBe('claude-3-5-haiku-20241022');
+    expect(body.max_tokens).toBe(32);
+    expect(insertLedger.mock.calls[0][0].action).toBe('cheaper_alias');
+    expect(insertLedger.mock.calls[0][0].provider).toBe('anthropic');
+  });
+
+  it('401 Anthropic without vaulted credential', async () => {
+    loadWorkspaceByToken.mockResolvedValue({ ...ws });
+    loadCredential.mockResolvedValue(null);
+    const res = await handleProxy(req('anthropic/v1/messages'), 'anthropic', ['v1', 'messages']);
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({
+      error: 'missing_provider_credential',
+      hint: expect.stringContaining('anthropic')
+    });
+  });
+
+  it('passthrough Stripe hops with zero savings', async () => {
+    loadWorkspaceByToken.mockResolvedValue({ ...ws });
+    loadCredential.mockResolvedValue(encryptSecret('sk_test_stripe'));
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response(JSON.stringify({ object: 'balance', available: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      })
+    );
+    const r = req('stripe/v1/balance', { method: 'GET' });
+    const res = await handleProxy(r, 'stripe', ['v1', 'balance']);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-gz-action')).toBe('passthrough');
+    expect(res.headers.get('x-gz-savings-usd')).toBe('0');
+    expect(res.headers.get('x-gz-fee-usd')).toBe('0');
+    const sent = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(sent[0]).toBe('https://api.stripe.com/v1/balance');
+    const hdrs = sent[1].headers as Headers;
+    expect(hdrs.get('authorization')).toBe('Bearer sk_test_stripe');
+  });
 });

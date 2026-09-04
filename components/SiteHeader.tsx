@@ -18,7 +18,6 @@ export default function SiteHeader({ current }: { current?: string }) {
         {item('/start', 'Start')}
         {item('/gate', 'Index')}
         {item('/pricing', 'Pricing')}
-        {item('/dashboard', 'Ledger')}
       </nav>
     </header>
   );

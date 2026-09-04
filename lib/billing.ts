@@ -28,22 +28,9 @@ export type PlanConfig = {
   highlight?: boolean;
 };
 
-const FREE_ENTS: Entitlement[] = ['vault', 'cost_radar'];
-const PRO_ENTS: Entitlement[] = [
-  ...FREE_ENTS,
-  'passkeys',
-  'yubigate',
-  'audit',
-  'csv_export',
-  'priority_proxy',
-  'portal'
-];
-const ENT_ENTS: Entitlement[] = [
-  ...PRO_ENTS,
-  'team_seats',
-  'sso',
-  'custom_take'
-];
+const FREE_ENTS: Entitlement[] = ['vault'];
+const PRO_ENTS: Entitlement[] = [...FREE_ENTS, 'priority_proxy', 'portal'];
+const ENT_ENTS: Entitlement[] = [...PRO_ENTS, 'custom_take'];
 
 export const PLANS: Record<PlanId, PlanConfig> = {
   free: {
@@ -110,4 +97,33 @@ export function takeRateFor(planId: PlanId | string | null | undefined): number 
 /** Workspace savings_fee_bps: 20% default, 15% Enterprise. */
 export function savingsFeeBpsForPlan(planId: PlanId | string | null | undefined): number {
   return getPlan(String(planId || 'free'))?.takeRate === 15 ? 1500 : 2000;
+}
+
+export function planFromPriceId(priceId?: string | null): PlanId | null {
+  if (!priceId) return null;
+  if (priceId === PLANS.pro.priceId) return 'pro';
+  if (priceId === PLANS.enterprise.priceId) return 'enterprise';
+  return null;
+}
+
+export function isCanceledSubscriptionStatus(status?: string | null): boolean {
+  return status === 'canceled' || status === 'unpaid' || status === 'incomplete_expired';
+}
+
+/** Resolve GateZero plan from a Stripe subscription object. */
+export function resolvePlanFromSubscription(sub: {
+  status?: string | null;
+  metadata?: { gatezero_plan?: string } | null;
+  items?: { data?: Array<{ price?: { id?: string } | string | null }> } | null;
+}): { plan: PlanId; canceled: boolean } {
+  if (isCanceledSubscriptionStatus(sub.status)) {
+    return { plan: 'free', canceled: true };
+  }
+  const meta = sub.metadata?.gatezero_plan;
+  if (meta === 'pro' || meta === 'enterprise' || meta === 'free') {
+    return { plan: meta, canceled: false };
+  }
+  const raw = sub.items?.data?.[0]?.price;
+  const priceId = typeof raw === 'string' ? raw : raw?.id;
+  return { plan: planFromPriceId(priceId) || 'pro', canceled: false };
 }

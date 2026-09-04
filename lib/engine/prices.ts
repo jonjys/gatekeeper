@@ -18,7 +18,11 @@ export const PRICES: PriceRow[] = [
   { provider: 'openai', model: 'gpt-4.1-nano', inPerMTok: 0.1, outPerMTok: 0.4 },
   { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022', inPerMTok: 3.0, outPerMTok: 15, cheaperAlias: 'claude-3-5-haiku-20241022' },
   { provider: 'anthropic', model: 'claude-3-5-haiku-20241022', inPerMTok: 0.8, outPerMTok: 4.0 },
-  { provider: 'anthropic', model: 'claude-sonnet-4-20250514', inPerMTok: 3.0, outPerMTok: 15, cheaperAlias: 'claude-3-5-haiku-20241022' }
+  { provider: 'anthropic', model: 'claude-sonnet-4-20250514', inPerMTok: 3.0, outPerMTok: 15, cheaperAlias: 'claude-3-5-haiku-20241022' },
+  // Short ids so dated Anthropic model strings still longest-prefix match.
+  { provider: 'anthropic', model: 'claude-3-5-sonnet', inPerMTok: 3.0, outPerMTok: 15, cheaperAlias: 'claude-3-5-haiku-20241022' },
+  { provider: 'anthropic', model: 'claude-3-5-haiku', inPerMTok: 0.8, outPerMTok: 4.0 },
+  { provider: 'anthropic', model: 'claude-sonnet-4', inPerMTok: 3.0, outPerMTok: 15, cheaperAlias: 'claude-3-5-haiku-20241022' }
 ];
 
 export function findPrice(provider: string, model: string): PriceRow | null {

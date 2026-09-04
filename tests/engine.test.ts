@@ -12,7 +12,10 @@ import { summarizeLedger } from '../lib/engine/workspace';
 import { mintTrapSecret } from '../lib/vacuum';
 import { isUniqueViolation, shouldMeterSavingsFee } from '../lib/engine/proxy-utils';
 import { bodyWantsStream, parseSseUsage, prepareOutboundBody } from '../lib/engine/stream';
-import { savingsFeeBpsForPlan } from '../lib/billing';
+import { savingsFeeBpsForPlan, resolvePlanFromSubscription } from '../lib/billing';
+import { hopPath, hopSnippet, proveRequestedModel } from '../lib/engine/hop';
+import { jsonError } from '../lib/engine/errors';
+import { customerIdFromStripe } from '../lib/stripe-events';
 import { isGzToken } from '../lib/engine/auth';
 import { NextRequest } from 'next/server';
 
@@ -62,6 +65,17 @@ describe('routing', () => {
     });
     expect(d.action).toBe('cheaper_alias');
     expect(d.routedModel).toBe('gpt-4o-mini');
+  });
+
+  it('aliases claude sonnet to haiku when preferCheap', () => {
+    const d = decideRoute({
+      provider: 'anthropic',
+      requestedModel: 'claude-sonnet-4-20250514',
+      preferCheap: true,
+      killed: false
+    });
+    expect(d.action).toBe('cheaper_alias');
+    expect(d.routedModel).toBe('claude-3-5-haiku-20241022');
   });
 
   it('passthrough when preferCheap is false', () => {
@@ -284,6 +298,13 @@ describe('price matching', () => {
     expect(estimateHopUsd('openai', 'gpt-4o-mini')).toBeGreaterThan(0);
     expect(estimateHopUsd('openai', 'gpt-4o')).toBeGreaterThan(estimateHopUsd('openai', 'gpt-4o-mini'));
   });
+
+  it('matches short Anthropic ids and dated sonnet as sonnet', () => {
+    expect(findPrice('anthropic', 'claude-sonnet-4')?.cheaperAlias).toBe('claude-3-5-haiku-20241022');
+    expect(findPrice('anthropic', 'claude-sonnet-4-20250514')?.model).toBe('claude-sonnet-4-20250514');
+    expect(findPrice('anthropic', 'claude-3-5-sonnet')?.cheaperAlias).toBe('claude-3-5-haiku-20241022');
+    expect(findPrice('anthropic', 'claude-3-5-haiku-20241022')?.model).toBe('claude-3-5-haiku-20241022');
+  });
 });
 
 describe('failed hop cost', () => {
@@ -375,6 +396,14 @@ describe('stream helpers', () => {
     expect(anthropic?.prompt_tokens).toBe(20);
     expect(anthropic?.completion_tokens).toBe(7);
   });
+
+  it('does not inject OpenAI stream_options on Anthropic bodies', () => {
+    const raw = JSON.stringify({ model: 'claude-sonnet-4-20250514', stream: true, max_tokens: 32, messages: [] });
+    const out = JSON.parse(prepareOutboundBody(raw, 'claude-3-5-haiku-20241022', 'anthropic'));
+    expect(out.model).toBe('claude-3-5-haiku-20241022');
+    expect(out.stream_options).toBeUndefined();
+    expect(out.max_tokens).toBe(32);
+  });
 });
 
 describe('plan fee bps', () => {
@@ -409,5 +438,37 @@ describe('vault production key', () => {
     process.env.NODE_ENV = prevNode;
     process.env.VERCEL_ENV = prevVercel;
     process.env.GATEZERO_VAULT_KEY = prevKey;
+  });
+});
+
+describe('hop helpers', () => {
+  it('points Anthropic at messages and OpenAI at chat completions', () => {
+    expect(hopPath('anthropic')).toBe('v1/messages');
+    expect(hopPath('openai')).toBe('v1/chat/completions');
+    expect(proveRequestedModel('anthropic')).toBe('claude-sonnet-4-20250514');
+    expect(hopSnippet('https://getgatezero.com', 'anthropic', 'gz_live_x')).toContain(
+      '/api/proxy/anthropic/v1/messages'
+    );
+  });
+});
+
+describe('subscription plan resolution', () => {
+  it('uses metadata, then price id, and treats canceled as free', () => {
+    expect(resolvePlanFromSubscription({ metadata: { gatezero_plan: 'enterprise' } }).plan).toBe(
+      'enterprise'
+    );
+    expect(resolvePlanFromSubscription({ status: 'canceled', metadata: { gatezero_plan: 'pro' } })).toEqual(
+      { plan: 'free', canceled: true }
+    );
+    expect(customerIdFromStripe({ customer: 'cus_abc' })).toBe('cus_abc');
+    expect(customerIdFromStripe({ customer: { id: 'cus_obj' } })).toBe('cus_obj');
+  });
+});
+
+describe('error envelope', () => {
+  it('returns error plus optional hint', async () => {
+    const res = jsonError('missing_workspace_token', 401, { hint: 'Send x-gz-key' });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'missing_workspace_token', hint: 'Send x-gz-key' });
   });
 });

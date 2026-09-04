@@ -15,7 +15,7 @@ const TIERS = [
       'Fail-closed kill + daily/monthly caps',
       'Cheaper-model routing',
       'Encrypted provider vault',
-      '20% of verified savings (0 if 0)'
+      '20% of verified savings tracked on the ledger (billed after you add a card)'
     ],
     cta: 'Start free',
     href: '/start',
@@ -30,8 +30,8 @@ const TIERS = [
     features: [
       'Everything in Free',
       'Stripe Customer Portal',
-      'Metered savings fee via Stripe',
-      'Priority retries',
+      'Metered savings fee via Stripe (20% of verified savings)',
+      'Priority GET retries',
       'Workspace kill + ledger'
     ],
     cta: 'Upgrade to Pro',
@@ -47,8 +47,7 @@ const TIERS = [
     features: [
       'Everything in Pro',
       '15% savings fee',
-      'Custom fail-open contracts',
-      'Team seats',
+      'Fail-open option',
       'Dedicated support'
     ],
     cta: 'Start Enterprise',
@@ -64,7 +63,7 @@ const FAQ = [
   },
   {
     q: 'What do you charge?',
-    a: 'Seat fees ($0 / $29 / $299) plus a success fee: 20% of verified savings (15% Enterprise). If we do not reduce cost versus the requested model, the fee is $0. Failed hops are not billed.'
+    a: 'Seat fees ($0 / $29 / $299) plus a success fee: 20% of verified savings (15% Enterprise), metered on Stripe after Checkout. Free tracks the fee on the ledger but cannot collect it until you have a Stripe customer. If we do not reduce cost versus the requested model, the fee is $0. Failed hops are not billed.'
   },
   {
     q: 'What happens when the budget is hit?',
@@ -76,7 +75,7 @@ const FAQ = [
   },
   {
     q: 'Which endpoint do I point at?',
-    a: 'https://getgatezero.com/api/proxy/openai/v1/chat/completions with header x-gz-key: gz_live_…. Same shape for anthropic. Use the apex domain — do not POST /api/* through a www redirect or clients drop the body.'
+    a: 'https://getgatezero.com/api/proxy/openai/v1/chat/completions with header x-gz-key: gz_live_…. Anthropic: /api/proxy/anthropic/v1/messages. Use the apex domain — do not POST /api/* through a www redirect or clients drop the body. /api/gate is a leftover demo, not the spend router.'
   }
 ];
 
@@ -119,15 +118,18 @@ export default function PricingPage() {
     setBusy(plan);
     setError(null);
     try {
-      const workspaceId =
-        typeof window !== 'undefined' ? localStorage.getItem('gz_workspace') || '' : '';
+      const token = typeof window !== 'undefined' ? localStorage.getItem('gz_token') || '' : '';
+      if (!token.startsWith('gz_')) {
+        window.location.href = `/start?upgrade=${encodeURIComponent(plan)}`;
+        return;
+      }
       const res = await fetch('/api/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan, workspaceId })
+        headers: { 'Content-Type': 'application/json', 'x-gz-key': token },
+        body: JSON.stringify({ plan })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || data.error || 'Checkout failed');
+      if (!res.ok) throw new Error(data.hint || data.detail || data.error || 'Checkout failed');
       if (data.url) {
         window.location.href = data.url;
         return;
@@ -157,7 +159,8 @@ export default function PricingPage() {
             Pay us only when we save you money.
           </h1>
           <p className="text-zinc-400 max-w-xl mx-auto">
-            Seat $0 / $29 / $299. Success fee only if we actually cut the bill.
+            Seat $0 / $29 / $299. Success fee only if we actually cut the bill — billed on Pro /
+            Enterprise after Checkout.
           </p>
           <p className="text-sm font-mono text-emerald-400/90 pt-1">
             Proxied {proxied.toLocaleString()} hops on this booth · live ledger
@@ -166,8 +169,8 @@ export default function PricingPage() {
 
         {fromBilling && (
           <p className="text-center text-sm text-emerald-400 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
-            Billing needs an active plan first — pick Pro or Enterprise below. After Checkout,
-            Billing opens the Stripe portal.
+            Billing needs an active plan first — create a workspace on /start if you have not, then
+            pick Pro or Enterprise. After Checkout, Billing opens the Stripe portal.
           </p>
         )}
 
