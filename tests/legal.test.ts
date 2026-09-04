@@ -50,15 +50,17 @@ describe('company facts', () => {
   });
 
   it('does not publish withheld legal details or stale registration claims', () => {
+    const published = JSON.stringify(COMPANY);
     const source = readIdentitySource();
-    expect(source).not.toMatch(/fkornelind@nyttolabs\.com/i);
+    expect(published).not.toMatch(/fkornelind@/i);
+    expect(source).not.toMatch(/fkornelind@/i);
     expect(source).not.toMatch(/registration in progress/i);
     expect(source).not.toMatch(/not VAT registered/i);
     expect(source).not.toMatch(/personnummer/i);
     expect(COMPANY.legalLine).toMatch(/approved for F-tax/i);
     expect(COMPANY.legalLine).toMatch(/registered for VAT/i);
-    expect(COMPANY.legalLine).not.toMatch(/\d{6}-\d{4}/);
-    expect(COMPANY.legalLine).not.toMatch(/SE\d{10}01/i);
+    expect(published).not.toMatch(/\d{6}-\d{4}/);
+    expect(published).not.toMatch(/SE\d{10}01/i);
   });
 });
 

@@ -1,7 +1,7 @@
 /**
  * Approved public facts for GateZero / Nytto Labs.
  * Do not invent org numbers, VAT numbers, street address, certifications, or extra emails.
- * Do not publish fkornelind@nyttolabs.com, personal identity numbers, or residential addresses.
+ * Do not publish private proprietor mailboxes, personal identity numbers, or residential addresses.
  */
 export const SITE_ORIGIN = 'https://getgatezero.com';
 
