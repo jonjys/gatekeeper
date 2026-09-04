@@ -11,5 +11,8 @@ Workspace + OpenAI vault + proxy 200 are live.
 Apex `getgatezero.com` must be primary. Do **not** 308 POST `/api/*` to www —
 clients will drop the body. Redirect `www` → apex, never the other way.
 
-## Optional SQL
-`supabase/migrations/005_ledger_fix.sql` — unique index that ignores auto_* keys.
+## SQL
+Land these if not already applied:
+
+1. `supabase/migrations/005_ledger_fix.sql` — unique index that ignores `auto_*` / `retry_*` keys.
+2. `supabase/migrations/006_spend_windows.sql` — `workspace_spend_windows()` for fail-closed budgets + `idempotency_cache` so serverless retries do not double-hop.

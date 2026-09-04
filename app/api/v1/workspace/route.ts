@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/supabase-admin';
+import { requireWorkspace } from '@/lib/engine/auth';
 import { hashToken, mintWorkspaceToken } from '@/lib/engine/vault';
 import { SAVINGS_FEE_BPS } from '@/lib/engine/prices';
 import { rateLimit } from '@/lib/engine/ratelimit';
@@ -55,23 +56,21 @@ export async function POST(req: NextRequest) {
   });
 }
 
-
 export async function GET(req: NextRequest) {
-  const token = req.headers.get('x-gz-key') || '';
-  const db = adminDb();
-  if (!db) return NextResponse.json({ error: 'db_unavailable' }, { status: 503 });
-  if (!token.startsWith('gz_')) {
-    return NextResponse.json({ error: 'x-gz-key required' }, { status: 401 });
-  }
-  const { data } = await db
-    .from('workspaces')
-    .select('id, name, plan, fail_mode, monthly_budget_usd, daily_budget_usd, killed, prefer_cheap, savings_fee_bps, stripe_customer_id, created_at')
-    .eq('token_hash', hashToken(token))
-    .maybeSingle();
-  if (!data) return NextResponse.json({ error: 'unknown_workspace' }, { status: 401 });
+  const auth = await requireWorkspace(req);
+  if ('error' in auth) return auth.error;
   const origin = process.env.NEXT_PUBLIC_SITE_URL || req.nextUrl.origin;
+  const { ws } = auth;
   return NextResponse.json({
-    ...data,
+    id: ws.id,
+    plan: ws.plan,
+    fail_mode: ws.fail_mode,
+    monthly_budget_usd: ws.monthly_budget_usd,
+    daily_budget_usd: ws.daily_budget_usd,
+    killed: ws.killed,
+    prefer_cheap: ws.prefer_cheap,
+    savings_fee_bps: ws.savings_fee_bps,
+    stripe_customer_id: ws.stripe_customer_id,
     proxyBase: `${origin}/api/proxy`,
     snippet: `fetch('${origin}/api/proxy/openai/v1/chat/completions', {
   method: 'POST',
@@ -82,14 +81,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const token = req.headers.get('x-gz-key') || '';
+  const auth = await requireWorkspace(req);
+  if ('error' in auth) return auth.error;
   const db = adminDb();
   if (!db) return NextResponse.json({ error: 'db_unavailable' }, { status: 503 });
-  if (!token.startsWith('gz_')) {
-    return NextResponse.json({ error: 'x-gz-key required' }, { status: 401 });
-  }
-  const { data: ws } = await db.from('workspaces').select('id').eq('token_hash', hashToken(token)).maybeSingle();
-  if (!ws) return NextResponse.json({ error: 'unknown_workspace' }, { status: 401 });
   let body: {
     monthlyBudgetUsd?: number;
     dailyBudgetUsd?: number;
@@ -102,12 +97,16 @@ export async function PATCH(req: NextRequest) {
     body = {};
   }
   const patch: Record<string, unknown> = {};
-  if (typeof body.monthlyBudgetUsd === 'number') patch.monthly_budget_usd = body.monthlyBudgetUsd;
-  if (typeof body.dailyBudgetUsd === 'number') patch.daily_budget_usd = body.dailyBudgetUsd;
+  if (typeof body.monthlyBudgetUsd === 'number' && Number.isFinite(body.monthlyBudgetUsd) && body.monthlyBudgetUsd >= 0) {
+    patch.monthly_budget_usd = body.monthlyBudgetUsd;
+  }
+  if (typeof body.dailyBudgetUsd === 'number' && Number.isFinite(body.dailyBudgetUsd) && body.dailyBudgetUsd >= 0) {
+    patch.daily_budget_usd = body.dailyBudgetUsd;
+  }
   if (typeof body.preferCheap === 'boolean') patch.prefer_cheap = body.preferCheap;
   if (body.failMode === 'closed' || body.failMode === 'open') patch.fail_mode = body.failMode;
   if (!Object.keys(patch).length) return NextResponse.json({ error: 'empty_patch' }, { status: 400 });
-  const { error } = await db.from('workspaces').update(patch).eq('id', ws.id);
+  const { error } = await db.from('workspaces').update(patch).eq('id', auth.ws.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, patch });
 }

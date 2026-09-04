@@ -68,6 +68,8 @@ Do not POST `/api/*` through a `www` redirect — clients drop the body.
 
 Required for the proxy: `GATEZERO_VAULT_KEY` (64 hex chars), Supabase service role, Stripe secret.
 
+Apply SQL in order: `001`…`004`, then **`005_ledger_fix.sql`** (partial unique index — ignore `auto_*` keys) and **`006_spend_windows.sql`** (month/day spend RPC + durable idempotency cache).
+
 ## Not the product
 
 Old names (`gatekeeper`, `gatekeeper-beta-three`, `gatezero-inky`) are leftover Vercel URLs. Canonical: **getgatezero.com**.

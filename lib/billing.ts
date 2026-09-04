@@ -102,7 +102,12 @@ export function siteUrl(reqOrigin?: string | null): string {
   ).replace(/\/$/, '');
 }
 
-/** Take-rate for a plan (percent points, e.g. 2) */
+/** Take-rate for a plan (percent of verified savings, e.g. 20). */
 export function takeRateFor(planId: PlanId | string | null | undefined): number {
   return getPlan(String(planId || 'free'))?.takeRate ?? 20;
+}
+
+/** Workspace savings_fee_bps: 20% default, 15% Enterprise. */
+export function savingsFeeBpsForPlan(planId: PlanId | string | null | undefined): number {
+  return getPlan(String(planId || 'free'))?.takeRate === 15 ? 1500 : 2000;
 }

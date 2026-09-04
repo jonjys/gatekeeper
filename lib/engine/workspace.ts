@@ -1,5 +1,6 @@
 import { adminDb } from '@/lib/supabase-admin';
 import { hashToken } from './vault';
+import { isUniqueViolation, truncateForCache } from './proxy-utils';
 import type { FailMode } from './policy';
 
 export type Workspace = {
@@ -44,7 +45,9 @@ export type LedgerRow = {
 };
 
 const LEDGER_SELECT =
-  'id, provider, model, action, baseline_usd, actual_usd, savings_usd, fee_usd, status, created_at';
+  'id, provider, model, path, action, baseline_usd, actual_usd, savings_usd, fee_usd, status, created_at';
+
+const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 
 export async function loadWorkspaceByToken(token: string): Promise<Workspace | null> {
   const db = adminDb();
@@ -87,8 +90,33 @@ export function summarizeLedger(rows: LedgerRow[]) {
 }
 
 export async function spendWindows(workspaceId: string): Promise<{ monthly: number; daily: number }> {
-  const rows = await listLedger(workspaceId, 500);
-  return summarizeLedger(rows).spend;
+  const db = adminDb();
+  if (!db) return { monthly: 0, daily: 0 };
+
+  const rpc = await db.rpc('workspace_spend_windows', { p_workspace: workspaceId });
+  if (!rpc.error && rpc.data != null) {
+    const row = (Array.isArray(rpc.data) ? rpc.data[0] : rpc.data) as { monthly?: number; daily?: number } | null;
+    if (row && typeof row === 'object') {
+      return {
+        monthly: Number(row.monthly) || 0,
+        daily: Number(row.daily) || 0
+      };
+    }
+  }
+
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  const { data, error } = await db
+    .from('ledger_requests')
+    .select('id, provider, model, path, action, baseline_usd, actual_usd, savings_usd, fee_usd, status, created_at')
+    .eq('workspace_id', workspaceId)
+    .gte('created_at', monthStart.toISOString())
+    .limit(10_000);
+  if (error || !data) {
+    return summarizeLedger(await listLedger(workspaceId, 500)).spend;
+  }
+  return summarizeLedger(data as LedgerRow[]).spend;
 }
 
 export function buildLedgerPayload(row: LedgerWrite) {
@@ -116,6 +144,16 @@ export async function insertLedger(
   const payload = buildLedgerPayload(row);
   const { data, error } = await db.from('ledger_requests').insert(payload).select('id').maybeSingle();
   if (!error) return { ok: true, id: data?.id, via: 'ledger_requests' };
+
+  if (isUniqueViolation(error) && payload.idempotency_key && !payload.idempotency_key.startsWith('auto_')) {
+    const existing = await db
+      .from('ledger_requests')
+      .select('id')
+      .eq('workspace_id', payload.workspace_id)
+      .eq('idempotency_key', payload.idempotency_key)
+      .maybeSingle();
+    return { ok: true, id: existing.data?.id, via: 'idempotent' };
+  }
 
   console.error('ledger_insert', error.message, error.code, error.details, error.hint);
 
@@ -185,18 +223,17 @@ export async function loadCredential(
 }
 
 export async function markKilled(workspaceId: string, reason: string) {
-  const db = adminDb();
-  if (!db) return;
-  await db
-    .from('workspaces')
-    .update({ killed: true, kill_reason: reason, killed_at: new Date().toISOString() })
-    .eq('id', workspaceId);
+  return setKilled(workspaceId, true, reason);
 }
 
-export async function setKilled(workspaceId: string, killed: boolean, reason: string) {
+export async function setKilled(
+  workspaceId: string,
+  killed: boolean,
+  reason: string
+): Promise<{ ok: boolean; error?: string }> {
   const db = adminDb();
-  if (!db) return;
-  await db
+  if (!db) return { ok: false, error: 'db_unavailable' };
+  const { error } = await db
     .from('workspaces')
     .update({
       killed,
@@ -204,6 +241,8 @@ export async function setKilled(workspaceId: string, killed: boolean, reason: st
       killed_at: killed ? new Date().toISOString() : null
     })
     .eq('id', workspaceId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 export async function updateWorkspace(
@@ -215,6 +254,7 @@ export async function updateWorkspace(
     fail_mode: FailMode;
     stripe_customer_id: string;
     plan: string;
+    savings_fee_bps: number;
   }>
 ) {
   const db = adminDb();
@@ -295,4 +335,50 @@ export async function probeLedgerWrite(workspaceId: string) {
     fee_usd: 0,
     status: 204
   });
+}
+
+export type IdempotencyHit = { status: number; body: string; contentType: string };
+
+export async function loadIdempotency(
+  workspaceId: string,
+  key: string
+): Promise<IdempotencyHit | null> {
+  const db = adminDb();
+  if (!db || !key) return null;
+  const { data, error } = await db
+    .from('idempotency_cache')
+    .select('status, body, content_type, created_at')
+    .eq('workspace_id', workspaceId)
+    .eq('idempotency_key', key)
+    .maybeSingle();
+  if (error || !data) return null;
+  const age = Date.now() - new Date(String(data.created_at)).getTime();
+  if (Number.isFinite(age) && age > IDEMPOTENCY_TTL_MS) return null;
+  return {
+    status: Number(data.status),
+    body: String(data.body || ''),
+    contentType: String(data.content_type || 'application/json')
+  };
+}
+
+export async function saveIdempotency(
+  workspaceId: string,
+  key: string,
+  status: number,
+  body: string,
+  contentType = 'application/json'
+): Promise<void> {
+  const db = adminDb();
+  if (!db || !key) return;
+  await db.from('idempotency_cache').upsert(
+    {
+      workspace_id: workspaceId,
+      idempotency_key: key,
+      status,
+      body: truncateForCache(body),
+      content_type: contentType,
+      created_at: new Date().toISOString()
+    },
+    { onConflict: 'workspace_id,idempotency_key' }
+  );
 }

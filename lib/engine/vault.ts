@@ -10,17 +10,21 @@ export function mintWorkspaceToken(): string {
   return 'gz_live_' + randomBytes(24).toString('hex');
 }
 
+const HEX_64 = /^[0-9a-fA-F]{64}$/;
+
 function keyBuf(): Buffer {
   const raw = process.env.GATEZERO_VAULT_KEY || '';
-  if (/^[0-9a-fA-F]{64}$/.test(raw)) return Buffer.from(raw, 'hex');
-  if (process.env.VERCEL_ENV === 'production') {
+  if (HEX_64.test(raw)) return Buffer.from(raw, 'hex');
+  const prod =
+    process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+  if (prod) {
     throw new Error('GATEZERO_VAULT_KEY must be 64 hex chars in production');
   }
   return createHash('sha256').update(raw || 'gatezero-dev-vault-key').digest();
 }
 
 export function vaultConfigured(): boolean {
-  return Boolean(process.env.GATEZERO_VAULT_KEY);
+  return HEX_64.test(process.env.GATEZERO_VAULT_KEY || '');
 }
 
 export function encryptSecret(plain: string): { ciphertext: string; iv: string; tag: string } {

@@ -173,6 +173,14 @@ export default function DashboardPage() {
           </div>
         )}
 
+        <p className="text-sm text-zinc-500">
+          The spend router lives on{' '}
+          <Link href="/start" className="text-emerald-400 hover:underline">
+            /start
+          </Link>
+          . Ledger below is that workspace. YubiKey / passkey / on-device vault are demos — not the money path.
+        </p>
+
         <div className="flex gap-2 border-b border-zinc-800 pb-2">
           {(['usage', 'audit'] as Tab[]).map((t) => (
             <button
@@ -185,7 +193,7 @@ export default function DashboardPage() {
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              {t}
+              {t === 'usage' ? 'demos' : 'audit'}
             </button>
           ))}
         </div>
@@ -193,46 +201,41 @@ export default function DashboardPage() {
         {tab === 'audit' ? (
           <AuditPanel />
         ) : (
-          <>
+          <details className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 space-y-4">
+            <summary className="cursor-pointer text-sm font-medium text-zinc-300">
+              Demo tools (not the spend router)
+            </summary>
+            <p className="text-xs text-zinc-500">
+              CostRadar, local IndexedDB vault, YubiKey, and passkeys are leftover demos. They do not sit
+              on <code className="text-emerald-400">/api/proxy</code>.
+            </p>
             <section className="grid sm:grid-cols-3 gap-3">
               <div className="card">
-                <p className="text-xs text-zinc-500 uppercase tracking-wider">Calls</p>
+                <p className="text-xs text-zinc-500 uppercase tracking-wider">Local calls</p>
                 <p className="text-2xl font-mono mt-1">{totals.calls.toLocaleString()}</p>
               </div>
               <div className="card">
-                <p className="text-xs text-zinc-500 uppercase tracking-wider">Cost</p>
-                <p className="text-2xl font-mono mt-1 text-emerald-400">
-                  ${totals.cost.toFixed(4)}
-                </p>
+                <p className="text-xs text-zinc-500 uppercase tracking-wider">Local cost</p>
+                <p className="text-2xl font-mono mt-1 text-emerald-400">${totals.cost.toFixed(4)}</p>
               </div>
               <div className="card">
-                <p className="text-xs text-zinc-500 uppercase tracking-wider">Take</p>
+                <p className="text-xs text-zinc-500 uppercase tracking-wider">Booth</p>
                 <Link href="/start" className="text-lg font-mono mt-1 text-amber-400 block">
                   /start
                 </Link>
               </div>
             </section>
-
             <section className="card space-y-3">
-              <h2 className="font-semibold">CostRadar</h2>
+              <h2 className="font-semibold">CostRadar (demo)</h2>
               <UsageChart data={chartData} />
             </section>
-
             <QueueTransparent />
-
             <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="font-semibold">Local vault</h2>
-                <Link href="/" className="text-sm text-emerald-400 hover:underline">
-                  + Import
-                </Link>
-              </div>
+              <h2 className="font-semibold">Local vault</h2>
               {loading ? (
                 <p className="text-zinc-500 text-sm">Loading…</p>
               ) : keys.length === 0 ? (
-                <div className="card border-dashed text-center text-zinc-500 text-sm">
-                  No keys yet. Import a .env on the home page.
-                </div>
+                <div className="card border-dashed text-center text-zinc-500 text-sm">No local demo keys.</div>
               ) : (
                 <ul className="rounded-2xl border border-zinc-800 divide-y divide-zinc-800 overflow-hidden">
                   {keys.map((k) => (
@@ -258,13 +261,12 @@ export default function DashboardPage() {
                 </ul>
               )}
             </section>
-
             <section className="grid sm:grid-cols-2 gap-3">
               <PasskeyGate estimatedSpendUsd={totals.cost} />
               <YubiGate estimatedSpendUsd={totals.cost} />
             </section>
             <VaultBackup />
-          </>
+          </details>
         )}
       </div>
     </main>

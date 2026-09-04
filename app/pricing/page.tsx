@@ -32,7 +32,7 @@ const TIERS = [
       'Stripe Customer Portal',
       'Metered savings fee via Stripe',
       'Priority retries',
-      'Passkey unlock for local vault'
+      'Workspace kill + ledger'
     ],
     cta: 'Upgrade to Pro',
     href: null,
@@ -60,23 +60,23 @@ const TIERS = [
 const FAQ = [
   {
     q: 'Do provider keys sit on your servers?',
-    a: 'Yes, for the money path. They are stored AES-256-GCM at rest and decrypted in memory per upstream hop. Optional browser Service Worker mode still keeps a second vault on-device. We do not claim the proxy is keyless.'
+    a: 'Yes, for the money path. They are stored AES-256-GCM at rest and decrypted in memory per upstream hop. That is required for a real proxy. Use a restricted key with a spend cap — not your master secret. Burn it anytime.'
   },
   {
     q: 'What do you charge?',
-    a: 'Seat fees ($0 / $29 / $299) plus a success fee: 20% of verified savings (15% Enterprise). If we do not reduce cost versus the requested model, the fee is $0.'
+    a: 'Seat fees ($0 / $29 / $299) plus a success fee: 20% of verified savings (15% Enterprise). If we do not reduce cost versus the requested model, the fee is $0. Failed hops are not billed.'
   },
   {
-    q: 'Which browsers work?',
-    a: 'Chrome and Edge (Chromium) for File System Access, Web Locks, WebUSB (YubiGate), and best Passkey support. Safari/Firefox get core vault + proxy where APIs exist; some moats degrade gracefully.'
+    q: 'What happens when the budget is hit?',
+    a: 'The spend router fail-closes: hops return 402 PAYMENT REQUIRED and the kill switch stays armed until you disarm. Daily caps return 429. Honeypot keys return 451 and are never forwarded. That is /api/proxy — not the demo Service Worker.'
   },
   {
     q: 'Can I cancel anytime?',
-    a: 'Yes. Pro and Enterprise use Stripe subscriptions. Use the Customer Portal (Dashboard) to update payment method or cancel. Vault data stays on your device regardless of plan.'
+    a: 'Yes. Pro and Enterprise use Stripe subscriptions. After Checkout, Billing on /start opens the Stripe Customer Portal. Encrypted provider keys stay in the server vault until you burn them.'
   },
   {
-    q: 'What happens when CostRadar budget is hit?',
-    a: 'A local kill-switch arms. The Service Worker returns 503 for /api/gate/* until you raise the budget or disarm. No remote kill required — the block is on-device.'
+    q: 'Which endpoint do I point at?',
+    a: 'https://getgatezero.com/api/proxy/openai/v1/chat/completions with header x-gz-key: gz_live_…. Same shape for anthropic. Use the apex domain — do not POST /api/* through a www redirect or clients drop the body.'
   }
 ];
 

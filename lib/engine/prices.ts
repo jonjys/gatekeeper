@@ -24,11 +24,21 @@ export const PRICES: PriceRow[] = [
 export function findPrice(provider: string, model: string): PriceRow | null {
   const p = provider.toLowerCase();
   const m = (model || '').toLowerCase();
-  return (
-    PRICES.find((r) => r.provider === p && r.model.toLowerCase() === m) ||
-    PRICES.find((r) => r.provider === p && m.startsWith(r.model.toLowerCase())) ||
-    null
-  );
+  if (!m) return null;
+  const exact = PRICES.find((r) => r.provider === p && r.model.toLowerCase() === m);
+  if (exact) return exact;
+  // Longest prefix wins so gpt-4o-mini-2024-* is not priced as gpt-4o (inflated savings).
+  const prefixHits = PRICES.filter(
+    (r) => r.provider === p && m.startsWith(r.model.toLowerCase())
+  ).sort((a, b) => b.model.length - a.model.length);
+  return prefixHits[0] || null;
+}
+
+/** Conservative pre-hop estimate used only for fail-closed budget checks. */
+export function estimateHopUsd(provider: string, model: string): number {
+  const row = findPrice(provider, model);
+  if (!row) return /gpt-4o(?!-mini)/i.test(model) ? 0.25 : 0.05;
+  return costUsd(row, 800, 400);
 }
 
 export function costUsd(row: PriceRow, promptTokens: number, completionTokens: number): number {

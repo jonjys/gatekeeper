@@ -1,18 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/supabase-admin';
-import { encryptSecret, hashToken, maskSecret } from '@/lib/engine/vault';
+import { requireWorkspace } from '@/lib/engine/auth';
+import { encryptSecret, maskSecret, vaultConfigured } from '@/lib/engine/vault';
 import { burnCredential, listCredentials } from '@/lib/engine/workspace';
 import { UPSTREAM } from '@/lib/engine/upstream';
+import { rateLimit } from '@/lib/engine/ratelimit';
+import { looksLikeTrapKey } from '@/lib/engine/policy';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
+  if (!vaultConfigured() && (process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production')) {
+    return NextResponse.json(
+      { error: 'vault_unconfigured', hint: 'Set GATEZERO_VAULT_KEY to 64 hex chars' },
+      { status: 503 }
+    );
+  }
+  const auth = await requireWorkspace(req);
+  if ('error' in auth) return auth.error;
+  if (!rateLimit(`cred:${auth.ws.id}`, 20, 60_000)) {
+    return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+  }
   const db = adminDb();
   if (!db) return NextResponse.json({ error: 'db_unavailable' }, { status: 503 });
-  const token = req.headers.get('x-gz-key') || '';
-  if (!token.startsWith('gz_')) {
-    return NextResponse.json({ error: 'x-gz-key required' }, { status: 401 });
-  }
   let body: { provider?: string; secret?: string };
   try {
     body = await req.json();
@@ -24,16 +34,27 @@ export async function POST(req: NextRequest) {
   if (!UPSTREAM[provider] || !secret) {
     return NextResponse.json({ error: 'provider and secret required' }, { status: 400 });
   }
-  const { data: ws } = await db
-    .from('workspaces')
-    .select('id')
-    .eq('token_hash', hashToken(token))
-    .maybeSingle();
-  if (!ws) return NextResponse.json({ error: 'unknown_workspace' }, { status: 401 });
-  const enc = encryptSecret(secret);
+  if (secret.length < 8) {
+    return NextResponse.json({ error: 'secret_too_short' }, { status: 400 });
+  }
+  if (looksLikeTrapKey(secret)) {
+    return NextResponse.json(
+      { error: 'trap_secret', hint: 'Honeypot keys belong in POST /api/v1/trap, not the provider vault' },
+      { status: 400 }
+    );
+  }
+  let enc: { ciphertext: string; iv: string; tag: string };
+  try {
+    enc = encryptSecret(secret);
+  } catch (e) {
+    return NextResponse.json(
+      { error: 'vault_encrypt_failed', detail: e instanceof Error ? e.message : String(e) },
+      { status: 500 }
+    );
+  }
   const { error } = await db.from('provider_credentials').upsert(
     {
-      workspace_id: ws.id,
+      workspace_id: auth.ws.id,
       provider,
       ciphertext: enc.ciphertext,
       iv: enc.iv,
@@ -48,31 +69,22 @@ export async function POST(req: NextRequest) {
     provider,
     masked: maskSecret(secret),
     honest:
-      'Server-side proxy stores this credential encrypted at rest (AES-256-GCM). It is decrypted only in memory per request. Browser SW mode still never sends keys.'
+      'Server-side proxy stores this credential encrypted at rest (AES-256-GCM). It is decrypted only in memory per request.'
   });
 }
 
-
 export async function GET(req: NextRequest) {
-  const db = adminDb();
-  if (!db) return NextResponse.json({ error: 'db_unavailable' }, { status: 503 });
-  const token = req.headers.get('x-gz-key') || '';
-  if (!token.startsWith('gz_')) return NextResponse.json({ error: 'x-gz-key required' }, { status: 401 });
-  const { data: ws } = await db.from('workspaces').select('id').eq('token_hash', hashToken(token)).maybeSingle();
-  if (!ws) return NextResponse.json({ error: 'unknown_workspace' }, { status: 401 });
-  const rows = await listCredentials(ws.id);
+  const auth = await requireWorkspace(req);
+  if ('error' in auth) return auth.error;
+  const rows = await listCredentials(auth.ws.id);
   return NextResponse.json({ credentials: rows });
 }
 
 export async function DELETE(req: NextRequest) {
-  const db = adminDb();
-  if (!db) return NextResponse.json({ error: 'db_unavailable' }, { status: 503 });
-  const token = req.headers.get('x-gz-key') || '';
-  if (!token.startsWith('gz_')) return NextResponse.json({ error: 'x-gz-key required' }, { status: 401 });
+  const auth = await requireWorkspace(req);
+  if ('error' in auth) return auth.error;
   const provider = (req.nextUrl.searchParams.get('provider') || '').toLowerCase();
   if (!provider) return NextResponse.json({ error: 'provider query required' }, { status: 400 });
-  const { data: ws } = await db.from('workspaces').select('id').eq('token_hash', hashToken(token)).maybeSingle();
-  if (!ws) return NextResponse.json({ error: 'unknown_workspace' }, { status: 401 });
-  await burnCredential(ws.id, provider);
+  await burnCredential(auth.ws.id, provider);
   return NextResponse.json({ ok: true, burned: provider });
 }
